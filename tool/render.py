@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from .model import Model, Req
 from .questions import Question
 from .store import Unit
@@ -75,3 +77,39 @@ def question(q: Question, topic_title: str) -> str:
     if q.blocks:
         out += ["**Blocks**", "", q.blocks, ""]
     return "\n".join(out)
+
+
+def excerpt(root: Path, file: str, line: int, before: int = 3, after: int = 8) -> list[tuple[int, str]]:
+    """Numbered source lines around `line` of `file`, which is relative to `root`."""
+    try:
+        lines = (root / file).read_text(errors="replace").splitlines()
+    except OSError:
+        return []
+    start = max(1, line - before)
+    return [(n, lines[n - 1]) for n in range(start, min(len(lines), line + after) + 1)]
+
+
+COMMENT = ("//", "/*", "*", "#", '"""', "'''", "--", "///")
+
+
+def origin(root: Path, file: str, line: int) -> str:
+    """What the marker at `line` is attached to: the first line of code after its
+    comment, or "file header" when the comment is the file's own @file block."""
+    try:
+        lines = (root / file).read_text(errors="replace").splitlines()
+    except OSError:
+        return ""
+    # The comment block the marker sits in, upwards then downwards.
+    start = line - 1
+    while start > 0 and lines[start - 1].strip().startswith(COMMENT):
+        start -= 1
+    block = lines[start:line]
+    end = line
+    while end < len(lines) and (not lines[end].strip() or lines[end].strip().startswith(COMMENT)):
+        block.append(lines[end])
+        end += 1
+    if any("@file" in b for b in block):
+        return "file header"
+    code = lines[end].strip() if end < len(lines) else ""
+    code = code.rstrip("{").rstrip()
+    return code if len(code) <= 72 else code[:71] + "…"

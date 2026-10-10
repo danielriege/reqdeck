@@ -121,6 +121,9 @@ skip = ["docs", "build"]                  # directory names not scanned
 test_paths = ["test", "spec"]             # a path containing one is a test
 declaration_extensions = [".h", ".swift"] # outside tests, markers only here
 interface_suffixes = ["_interface"]       # never marked
+[editor]                      # where the TUI opens a code or test reference
+command = "nvim +{line} {file}"           # or "code --goto {file}:{line}"
+# suspend = true                          # hand the terminal over until it exits
 ```
 
 Without `[verification]` the methods are A, I, D and T. Without `[markers]` every common
@@ -136,7 +139,7 @@ works entirely from the keyboard, with vim keys, and with the mouse.
 |---|---|
 | `j` `k` `h` `l`, `gg` `G`, `ctrl+d` `ctrl+u` | Move, as in vim |
 | `tab` `shift+tab` | In the reading pane: the next, previous link, highlighted and previewed |
-| `enter` `gd` | Follow the link; the tree moves there too |
+| `enter` `gd` | Follow the link; the tree moves there too. A code or test reference opens in the editor |
 | `ctrl+o` `[` · `]` | Back, forward through the jumps |
 | `/` · `n` `N` | Search · next, previous result |
 | `a` | Accept the highlighted requirement |
@@ -144,8 +147,12 @@ works entirely from the keyboard, with vim keys, and with the mouse.
 | `<` `>` | Sidebar width — or drag the divider |
 | `?` | All keys |
 
-Every requirement and question ID in the reading pane is a link; hovering one shows the
-same preview as `tab`.
+Every requirement and question ID in the reading pane is a link, and so is every code and
+test reference, shown with what it is attached to — the test function, the type. Hovering
+one shows the same preview as `tab`: the requirement, or the source around the marker. A
+reference opens in `[editor]`'s command, or `$VISUAL` / `$EDITOR` through a preset for
+nvim, vim, helix, VS Code, Cursor, Zed and others; a terminal editor gets the terminal
+until it exits, as in lazygit.
 
 It draws like lazygit: rounded panel borders that change colour on focus, a selected line,
 one hint line, and no background anywhere — the terminal's own shows through. The themes

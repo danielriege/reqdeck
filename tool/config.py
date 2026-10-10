@@ -80,6 +80,17 @@ class Markers:
 
 
 @dataclass
+class Editor:
+    #: Command opening a file at a line, `{file}` and `{line}` substituted:
+    #: "nvim +{line} {file}", "code --goto {file}:{line}". Empty means the
+    #: user's $VISUAL or $EDITOR, through a preset for the common ones.
+    command: str = ""
+    #: The TUI hands the terminal over until the editor exits. Unset means
+    #: yes for a terminal editor and no for a windowed one.
+    suspend: bool | None = None
+
+
+@dataclass
 class Config:
     root: Path
     requirements: Path
@@ -87,6 +98,7 @@ class Config:
     levels: list[Level]
     verification: dict[str, Verification]
     markers: Markers
+    editor: Editor = field(default_factory=Editor)
 
     def level(self, kind: str) -> Level | None:
         return next((lv for lv in self.levels if lv.kind == kind), None)
@@ -162,6 +174,12 @@ def load(root: Path) -> Config:
         raise ConfigError(f"{path}: [markers]: unknown key(s) {', '.join(sorted(unknown))}")
     markers = Markers(**m)
 
+    e = data.get("editor", {})
+    unknown = set(e) - set(Editor.__dataclass_fields__)
+    if unknown:
+        raise ConfigError(f"{path}: [editor]: unknown key(s) {', '.join(sorted(unknown))}")
+    editor = Editor(**e)
+
     q = data.get("questions")
     return Config(
         root=root,
@@ -170,4 +188,5 @@ def load(root: Path) -> Config:
         levels=levels,
         verification=verification,
         markers=markers,
+        editor=editor,
     )

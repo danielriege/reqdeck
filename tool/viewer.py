@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import subprocess
 import time
 from pathlib import Path
 
@@ -26,7 +27,7 @@ from textual.widgets import Input, Label, Markdown, OptionList, Static, Tree
 from textual.widgets.option_list import Option
 from textual.widgets.tree import TreeNode
 
-from . import ops, render, themes
+from . import editor, ops, render, themes
 from .cli import load_model
 from .model import Model, Req
 
@@ -47,8 +48,8 @@ HELP = """\
 | `ctrl+d` `ctrl+u` | Half a page down, up |
 | `n` `N` | Next, previous requirement or question in the tree |
 | `tab` `shift+tab` | In the tree: move to the reading pane. In the reading pane: next, previous link, previewed |
-| `enter` `gd` | Follow the selected link — the tree moves there too |
-| `K` | Preview the selected link again; `escape` closes the preview |
+| `enter` `gd` | Follow the selected link — the tree moves there too. On a code or test reference, open it in the editor |
+| `K` | Show the selected link's preview again after `escape` closed it |
 | `ctrl+o` `[` | Back to where you jumped from |
 | `]` | Forward again |
 | `/` | Search — a regex over id, title, statement, detail. `enter` returns to the tree, `escape` clears |
@@ -310,6 +311,16 @@ def _link(rid: str, sel: str = "") -> tuple[str, str]:
     return rid, f"{style} @click=app.goto('{rid}')"
 
 
+def _ref_link(file: str, line: int, sel: str = "") -> tuple[str, str]:
+    """A code or test reference, which opens in the editor when followed."""
+    target = f"ref:{file}:{line}"
+    style = "bold $rk-link-active on $rk-selection" if target == sel else "$rk-link underline"
+    shown = f"{Path(file).name}:{line}"     # the full path is in the preview
+    if "'" in file:
+        return shown, "$rk-link"
+    return shown, f"{style} @click=app.goto('{target}')"
+
+
 def _field(label: str, *value) -> Horizontal:
     """A label and its value side by side, the value wrapping under itself."""
     return Horizontal(Static(label, classes="flabel"), Static(Content.assemble(*value), classes="fvalue"),
@@ -432,8 +443,8 @@ def requirement_card(m: Model, r: Req, full: bool, sel: str = "") -> Vertical:
         lines = [Content.assemble(("References", "bold $rk-heading"))]
         for x in refs:
             kind = ("test", "bold $rk-accepted") if x.is_test else ("code", "bold $rk-id")
-            lines.append(Content.assemble("  ", kind, "  ", (f"{x.file}:{x.line}", "$rk-link"),
-                                          "  ", (x.note, "$rk-muted")))
+            lines.append(Content.assemble("  ", kind, "  ", _ref_link(x.file, x.line, sel),
+                                          "  ", (render.origin(m.cfg.root, x.file, x.line), "$rk-muted")))
         if not refs:
             lines.append(Content.assemble(("  none", "$rk-muted italic")))
         parts.append(Static(Content("\n").join(lines), classes="chain"))
@@ -552,7 +563,7 @@ class ReqkitApp(App):
         self.query_text = ""
         self.open_only = False
         self.nodes: dict[str, TreeNode] = {}
-        self.links: list[str] = []
+        self.links: list[str] | None = []
         self.shown: tuple | None = None
         self.link_index = -1
         self.hovering = ""
@@ -640,10 +651,10 @@ class ReqkitApp(App):
         except Exception:
             return
         in_view = self.focused is not None and self.focused.id == "view"
-        pairs = ([("Next link", "tab"), ("Follow", "enter"), ("Preview", "K"), ("Back", "ctrl+o"),
-                  ("Tree", "h")] if in_view else
-                 [("Search", "/"), ("Open", "l"), ("Reading pane", "tab"), ("Back", "ctrl+o"),
-                  ("Only open questions", "o")])
+        pairs = ([("Next link", "tab"), ("Follow", "enter"), ("Back", "ctrl+o"), ("Tree", "1")]
+                 if in_view else
+                 [("Search", "/"), ("Expand", "l"), ("Collapse", "h"), ("Reading pane", "2"),
+                  ("Back", "ctrl+o"), ("Only open questions", "o")])
         pairs += [("Accept", "a"), ("Theme", "t"), ("Keys", "?"), ("Quit", "q")]
         parts: list = []
         for i, (action, key) in enumerate(pairs):
@@ -857,7 +868,9 @@ class ReqkitApp(App):
         if not sel:
             self.hide_peek()
             self.shown = data
-            self.links = self._links_for(data)
+            # A document's links are its cards; anything else's are read off
+            # the rendered page, in reading order, once it is mounted.
+            self.links = self._links_for(data) if data[0] in ("unit", "section") else None
             self.link_index = -1
         # A fresh page per view: the old one is removed asynchronously, and its
         # cards share IDs with the new one's.
@@ -900,7 +913,7 @@ class ReqkitApp(App):
 
     def action_reload(self) -> None:
         self.m = load_model(self.script)
-        self.rebuild()
+        self.relabel()          # rebuilds the tree, keeping the cursor where it was
         self.notify("Reloaded")
 
     def action_next_match(self, direction: int) -> None:
@@ -914,31 +927,61 @@ class ReqkitApp(App):
 
     # ------------------------------------------------------------- links
 
-    def _ids_in(self, *texts: str) -> list[str]:
-        return [mm.group(0) for t in texts for mm in ID_RE.finditer(t or "") if self.m.knows(mm.group(0))]
-
     def _links_for(self, data) -> list[str]:
+        """A document's cards, in order: the link cursor steps through whole requirements."""
         m = self.m
         kind, key = data
-        ids: list[str] = []
-        if kind == "req" and key in m.reqs:
-            r = m.reqs[key]
-            ids = r.satisfies + m.satisfied_by.get(key, []) + self._ids_in(
-                r.statement, r.detail, r.rationale, r.source, *r.extra.values())
-        elif kind in ("unit", "section"):
-            stem = key if kind == "unit" else key[0]
-            for r in sorted(m.reqs.values(), key=m.sort_key):
+        stem = key if kind == "unit" else key[0]
+        return [r.id for r in sorted(m.reqs.values(), key=m.sort_key)
                 if r.unit == stem and (kind == "unit" or r.section == key[1]
-                                       or r.section.startswith(key[1] + ".")):
-                    ids.append(r.id)
-        elif kind == "question":
-            q = m.question(key)
-            ids = self._ids_in(q.question, q.answer, q.blocks) if q else []
-        elif kind == "topic":
-            ids = [q.id for q in m.questions if q.topic == key]
-        return [i for i in dict.fromkeys(ids) if i != key]
+                                       or r.section.startswith(key[1] + "."))]
+
+    def known(self, target: str) -> bool:
+        """A requirement, a question, or a source line that exists."""
+        if target.startswith("ref:"):
+            file, _, _line = target[4:].rpartition(":")
+            return (self.m.cfg.root / file).is_file()
+        return self.m.knows(target)
+
+    @staticmethod
+    def split_ref(target: str) -> tuple[str, int]:
+        file, _, line = target[4:].rpartition(":")
+        return file, int(line)
+
+    def _ref_preview(self, target: str) -> Content:
+        from rich.style import Style
+        from rich.syntax import Syntax
+        from rich.text import Span
+
+        file, line = self.split_ref(target)
+        rows = render.excerpt(self.m.cfg.root, file, line)
+        ref = next((x for x in self.m.refs if x.file == file and x.line == line), None)
+        kind = ("test", "bold $rk-accepted") if ref and ref.is_test else ("code", "bold $rk-id")
+        head = [Content.assemble(kind, "  ", (f"{file}:{line}", "bold $rk-link"), "  ",
+                                 (render.origin(self.m.cfg.root, file, line), "$rk-muted")),
+                Content("")]
+        if not rows:
+            return Content("\n").join(head + [Content.assemble(("unreadable", "$rk-reopened"))])
+        style = self.theme if self.theme in ("dracula", "nord", "monokai", "gruvbox-dark",
+                                             "solarized-dark", "solarized-light", "one-dark") else \
+            ("monokai" if self.current_theme.dark else "default")
+        code = Syntax("\n".join(text for _, text in rows), Syntax.guess_lexer(file),
+                      theme=style).highlight("\n".join(text for _, text in rows))
+        # The theme's token colours, without its background: nothing here paints one.
+        code.style = ""
+        code.spans[:] = [Span(sp.start, sp.end, Style(color=sp.style.color, bold=sp.style.bold,
+                                                      italic=sp.style.italic))
+                         for sp in code.spans if isinstance(sp.style, Style)]
+        body = []
+        for (n, _), text in zip(rows, code.split("\n", allow_blank=True)):
+            text.truncate(66 - 4 - 8, overflow="ellipsis")      # the gutter stays a gutter
+            mark = (f"{n:>5} ▶ ", "bold $rk-link-active") if n == line else (f"{n:>5} │ ", "$rk-muted")
+            body.append(Content.assemble(mark, Content.from_rich_text(text)))
+        return Content("\n").join(head + body)
 
     def preview(self, target: str) -> Content:
+        if target.startswith("ref:"):
+            return self._ref_preview(target)
         m = self.m
         if target in m.reqs:
             r = m.reqs[target]
@@ -964,14 +1007,25 @@ class ReqkitApp(App):
             return Content("\n").join(lines)
         return Content(target)
 
-    def show_peek(self, target: str, x: int, y: int, title: str = "") -> None:
+    def show_peek(self, target: str, cell: tuple[int, int] | None, title: str = "") -> None:
+        """The preview of `target`, beside the cell its link is drawn in.
+
+        Below the link where it fits, above where it does not — never over it,
+        as nvim places a hover. With no cell, in the reading pane's corner."""
         peek = self.query_one("#peek", Static)
-        peek.update(self.preview(target))
+        content = self.preview(target)
+        peek.update(content)
         peek.border_title = title
         width = 66
-        x = max(0, min(x, self.size.width - width - 1))
-        y = max(1, min(y, self.size.height - 8))
-        peek.styles.offset = (x, y)
+        height = min(18, len(content.wrap(width - 4)) + 2)
+        bottom = self.size.height - 1                     # the hint line
+        if cell is None:
+            view = self.query_one("#view").region
+            x, y = view.right - width - 2, view.bottom - height - 1
+        else:
+            x = cell[0] + 2
+            y = cell[1] + 1 if cell[1] + 1 + height <= bottom else cell[1] - height
+        peek.styles.offset = (max(0, min(x, self.size.width - width - 1)), max(0, y))
         peek.display = True
 
     def hide_peek(self) -> bool:
@@ -985,9 +1039,9 @@ class ReqkitApp(App):
         action = event.style.meta.get("@click", "") if event.style else ""
         mm = TARGET_RE.search(action) if action else None
         target = mm.group(1) if mm else ""
-        if target and self.m.knows(target):
+        if target and self.known(target):
             if target != self.hovering:
-                self.show_peek(target, event.screen_x + 2, event.screen_y + 1)
+                self.show_peek(target, (event.screen_x, event.screen_y))
                 self.hovering = target
         elif self.hovering:
             self.hide_peek()
@@ -998,12 +1052,57 @@ class ReqkitApp(App):
             event.stop()
             self.action_goto(event.href.removeprefix("reqkit:"))
 
+    def _page(self) -> Widget | None:
+        pages = list(self.query_one("#view").query(".page"))
+        return pages[-1] if pages else None
+
+    @staticmethod
+    def _targets_in(w: Widget) -> list[str]:
+        """Link targets a widget draws, in order."""
+        if isinstance(w, Markdown):
+            return re.findall(r"\(reqkit:([^)\s]+)\)", w.source)
+        if isinstance(w, Static) and isinstance(w.content, Content):
+            spans = sorted(w.content.spans, key=lambda sp: sp.start)
+            return [mm.group(1) for sp in spans if (mm := TARGET_RE.search(str(sp.style)))]
+        return []
+
+    def _ensure_links(self) -> list[str]:
+        if self.links is None:
+            page = self._page()
+            own = self.shown[1] if self.shown else None
+            found = [t for w in (page.query("*") if page else []) for t in self._targets_in(w)]
+            self.links = [t for t in dict.fromkeys(found) if t != own and self.known(t)]
+        return self.links
+
+    def _holder(self, target: str) -> Widget | None:
+        """The first widget on the page that draws a link to `target`."""
+        page = self._page()
+        for w in page.query("*") if page else []:
+            if target in self._targets_in(w):
+                return w
+        return None
+
+    def _locate(self, target: str) -> tuple[int, int] | None:
+        """The screen cell the link to `target` is drawn in, if it is in view."""
+        view = self.query_one("#view")
+        w = self._holder(target)
+        if w is None:
+            return None
+        area = w.region.intersection(view.region.shrink((1, 1, 1, 1)))
+        for y in range(area.y, area.bottom):
+            for x in range(area.x, area.right):
+                mm = TARGET_RE.search(str(self.screen.get_style_at(x, y).meta.get("@click", "")))
+                if mm and mm.group(1) == target:
+                    return x, y
+        return None
+
     def action_cycle_link(self, direction: int) -> None:
-        if not self.links:
+        links = self._ensure_links()
+        if not links:
             self.notify("Nothing here links anywhere.")
             return
-        self.link_index = (self.link_index + direction) % len(self.links)
-        target = self.links[self.link_index]
+        self.link_index = (self.link_index + direction) % len(links)
+        target = links[self.link_index]
         kind = self.shown[0] if self.shown else ""
         if kind in ("unit", "section"):
             # A document: the cursor is on whole cards, so no re-render is needed.
@@ -1015,21 +1114,56 @@ class ReqkitApp(App):
                 card.scroll_visible(animate=False, top=True)
             except Exception:
                 pass
+            self.call_after_refresh(self.action_peek_link)
         else:
             self.show(self.shown, sel=target)
+            self.call_after_refresh(self._reveal_link, target)
+
+    def _reveal_link(self, target: str) -> None:
+        w = self._holder(target)
+        if w is not None:
+            w.scroll_visible(animate=False)
         self.call_after_refresh(self.action_peek_link)
 
     def action_peek_link(self) -> None:
-        if not self.links:
+        links = self._ensure_links()
+        if not links:
             return
         if self.link_index < 0:
             self.link_index = 0
-        view = self.query_one("#view").region
-        self.show_peek(self.links[self.link_index], view.x + max(2, view.width - 68),
-                       view.y + max(1, view.height - 14),
-                       f" link {self.link_index + 1}/{len(self.links)} · enter to follow ")
+        target = links[self.link_index]
+        verb = f"enter opens in {editor.command(self.m.cfg.editor, 'x', 1)[0][0].rsplit('/', 1)[-1]}" \
+            if target.startswith("ref:") else "enter to follow"
+        title = f" link {self.link_index + 1}/{len(links)} · {verb} "
+        if self.shown and self.shown[0] in ("unit", "section"):
+            try:
+                card = self.query(f"#card-{target}").last().region
+                spot = (card.x + 2, card.y + 1)     # the ID in the card's head, as a hover sees it
+            except Exception:
+                spot = None
+        else:
+            spot = self._locate(target)
+        self.show_peek(target, spot, title)
+
+    def open_in_editor(self, file: str, line: int) -> None:
+        """`file` at `line` in the configured editor. A terminal editor gets the
+        terminal until it exits; a windowed one is launched and left running."""
+        argv, terminal = editor.command(self.m.cfg.editor, file, line)
+        self.hide_peek()
+        try:
+            if terminal:
+                with self.suspend():
+                    subprocess.run(argv, cwd=self.m.cfg.root)
+                self.action_reload()
+            else:
+                subprocess.Popen(argv, cwd=self.m.cfg.root, stdin=subprocess.DEVNULL,
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                 start_new_session=True)
+        except Exception as e:   # a missing editor, or no terminal to hand over
+            self.notify(f"Could not run {argv[0]}: {e}", severity="error")
 
     def action_follow_link(self) -> None:
+        self._ensure_links()
         if 0 <= self.link_index < len(self.links):
             self.action_goto(self.links[self.link_index])
         elif self.links:
@@ -1068,6 +1202,9 @@ class ReqkitApp(App):
         return True
 
     def action_goto(self, target: str) -> None:
+        if target.startswith("ref:"):
+            self.open_in_editor(*self.split_ref(target))
+            return
         kind = "req" if target in self.m.reqs else "question"
         here = self.query_one("#nav", Tree).cursor_node
         if self._move_to((kind, target)):

@@ -77,13 +77,12 @@ class TuiTest(unittest.TestCase):
             app.action_goto("SR_002")
             await pilot.pause()
             self.assertEqual(self.cursor(app), ("req", "SR_002"))
-            self.assertEqual(app.links, ["A-01", "SSR_APP_001", "SR_001", "OQ-0102"])
             app.query_one("#view").focus()
             await pilot.press("tab")                   # first link, previewed and highlighted
             await pilot.pause()
+            # Reading order: the statement, the source, then the chain.
+            self.assertEqual(app.links, ["SR_001", "OQ-0102", "A-01", "SSR_APP_001"])
             self.assertTrue(app.query_one("#peek").display)
-            await pilot.press("tab", "tab")            # SR_001, named in the statement
-            await pilot.pause()
             self.assertEqual(app.links[app.link_index], "SR_001")
             await pilot.press("g", "d")
             await pilot.pause()
@@ -118,6 +117,79 @@ class TuiTest(unittest.TestCase):
             await pilot.hover(head, offset=(40, 0))
             await pilot.pause()
             self.assertFalse(peek.display)
+        self.run_app(steps)
+
+    def test_tab_preview_opens_where_a_hover_would(self):
+        async def steps(app, pilot):
+            app.action_goto("SR_002")
+            await pilot.pause()
+            app.query_one("#view").focus()
+            for _ in range(3):                         # onto A-01, in the chain
+                await pilot.press("tab")
+                await pilot.pause()
+            self.assertEqual(app.links[app.link_index], "A-01")
+            by_key = tuple(app.query_one("#peek").styles.offset)
+            x, y = app._locate("A-01")
+            await pilot.press("escape")
+            await pilot.hover(None, offset=(x, y))
+            await pilot.pause()
+            self.assertEqual(app.hovering, "A-01")
+            self.assertEqual(tuple(app.query_one("#peek").styles.offset), by_key)
+        self.run_app(steps)
+
+    def test_preview_never_covers_its_link(self):
+        from tool.viewer import ReqkitApp
+
+        async def go():
+            app = ReqkitApp()
+            async with app.run_test(size=(120, 24)) as pilot:   # short, so some must flip above
+                await pilot.pause()
+                app.action_goto("SR_002")
+                await pilot.pause()
+                app.query_one("#view").focus()
+                for _ in range(len(app._ensure_links())):
+                    await pilot.press("tab")
+                    await pilot.pause()
+                    target = app.links[app.link_index]
+                    cell = app._locate(target)
+                    self.assertIsNotNone(cell, target)
+                    peek = app.query_one("#peek").region
+                    self.assertFalse(peek.contains(*cell), f"{target} at {cell} under {peek}")
+        asyncio.run(go())
+
+    def test_code_references_preview_and_open_in_the_editor(self):
+        self.p.write("src/screen.h", "#pragma once\n// @REQ_REF(SSR_APP_001) shows it\nvoid show(void);\n")
+        self.p.write("tests/screen_test.c", "// @REQ_REF(SSR_APP_001) shows it\nTEST(Screen, Shows) {}\n")
+        (self.p.root / ".reqkit.toml").write_text(
+            (self.p.root / ".reqkit.toml").read_text() + '\n[editor]\ncommand = "nvim +{line} {file}"\n')
+        ran = []
+
+        async def steps(app, pilot):
+            import contextlib
+            from unittest import mock
+            app.action_goto("SSR_APP_001")
+            await pilot.pause()
+            app.query_one("#view").focus()
+            await pilot.press("tab")
+            await pilot.pause()
+            # The source names OQ-0101; then the chain; then code and test.
+            self.assertEqual(app.links, ["OQ-0101", "SR_002", "ref:src/screen.h:2",
+                                         "ref:tests/screen_test.c:1"])
+            await pilot.press("tab", "tab")
+            await pilot.pause()
+            peek = app.query_one("#peek")
+            self.assertTrue(peek.display)
+            self.assertIn("void show(void);", str(peek.content))
+            refs = str(app.query(".chain").last().content)
+            self.assertIn("void show(void);", refs)            # the origin, not the description
+            self.assertNotIn("shows it", refs)
+            self.assertIn("enter opens in nvim", str(peek.border_title))
+            with mock.patch("tool.viewer.subprocess.run", side_effect=lambda argv, **kw: ran.append(argv)), \
+                    mock.patch.object(type(app), "suspend", lambda self: contextlib.nullcontext()):
+                await pilot.press("enter")
+                await pilot.pause()
+            self.assertEqual(ran, [["nvim", "+2", "src/screen.h"]])
+            self.assertEqual(self.cursor(app), ("req", "SSR_APP_001"))   # still there after the reload
         self.run_app(steps)
 
     def test_document_cursor_steps_through_cards(self):

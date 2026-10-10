@@ -258,6 +258,58 @@ class TestDocument(Base):
         self.assertEqual(doc[2]["req"].id, "SR_001")
 
 
+class TestEditor(unittest.TestCase):
+    def setUp(self):
+        self.env = {k: os.environ.pop(k, None) for k in ("VISUAL", "EDITOR")}
+
+    def tearDown(self):
+        for k, v in self.env.items():
+            if v is not None:
+                os.environ[k] = v
+            else:
+                os.environ.pop(k, None)
+
+    def test_presets_from_the_environment(self):
+        from tool.config import Editor
+        from tool.editor import command
+        os.environ["EDITOR"] = "nvim"
+        self.assertEqual(command(Editor(), "a b.h", 7), (["nvim", "+7", "a b.h"], True))
+        os.environ["VISUAL"] = "code"
+        self.assertEqual(command(Editor(), "x.swift", 3), (["code", "--goto", "x.swift:3"], False))
+        os.environ["VISUAL"] = "/opt/bin/nvim -u NONE"
+        self.assertEqual(command(Editor(), "x.h", 3)[0], ["/opt/bin/nvim", "-u", "NONE", "+3", "x.h"])
+
+    def test_the_project_command_wins(self):
+        from tool.config import Editor
+        from tool.editor import command
+        os.environ["EDITOR"] = "nvim"
+        self.assertEqual(command(Editor(command="zed {file}:{line}"), "x.c", 9), (["zed", "x.c:9"], False))
+        self.assertEqual(command(Editor(command="myed {file}", suspend=True), "x.c", 9), (["myed", "x.c"], True))
+
+    def test_editor_table_is_read_from_the_config(self):
+        p = Project()
+        try:
+            (p.root / ".reqkit.toml").write_text(CONFIG + '\n[editor]\ncommand = "code --goto {file}:{line}"\n')
+            self.assertEqual(config.load(p.root).editor.command, "code --goto {file}:{line}")
+            (p.root / ".reqkit.toml").write_text(CONFIG + '\n[editor]\ncmd = "x"\n')
+            with self.assertRaises(config.ConfigError):
+                config.load(p.root)
+        finally:
+            p.close()
+
+
+class TestOrigin(Base):
+    def test_what_a_marker_is_attached_to(self):
+        from tool.render import origin
+        self.p.write("src/pwm.h", "/**\n * @file pwm.h\n * @REQ_REF(SSR_APP_001) x\n */\n#pragma once\n")
+        self.p.write("src/A.swift", "/// Keeps them.\n///\n/// @REQ_REF(SSR_APP_001) x\nfinal class A {\n}\n")
+        self.p.write("test/t.cpp", "/**\n * @test It works.\n *\n * @REQ_REF(SSR_APP_001) x\n */\n"
+                                   "TEST_F(PwmTest, Works)\n{\n}\n")
+        self.assertEqual(origin(self.p.root, "src/pwm.h", 3), "file header")
+        self.assertEqual(origin(self.p.root, "src/A.swift", 3), "final class A")
+        self.assertEqual(origin(self.p.root, "test/t.cpp", 4), "TEST_F(PwmTest, Works)")
+
+
 class TestQuestions(Base):
     def test_open_and_answered(self):
         m = self.p.model()

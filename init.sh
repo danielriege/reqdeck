@@ -261,6 +261,10 @@ CREATED+=("${ROOT}/.reqkit.toml")
         echo "# declaration_extensions = []   # restrict non-test markers to these file types"
         echo "# interface_suffixes = []       # file stems that declare an interface, never marked"
     fi
+    echo
+    echo "# Where the TUI opens a code or test reference. Unset: \$VISUAL or \$EDITOR."
+    echo "# [editor]"
+    echo '# command = "nvim +{line} {file}"     # or "code --goto {file}:{line}"'
 } > "${ROOT}/.reqkit.toml"
 
 export REQKIT_ROOT="${ROOT}"

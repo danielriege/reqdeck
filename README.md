@@ -126,6 +126,29 @@ interface_suffixes = ["_interface"]       # never marked
 Without `[verification]` the methods are A, I, D and T. Without `[markers]` every common
 source extension is scanned and markers may sit anywhere.
 
+## The TUI
+
+`tui.py` shows each unit as a document — sections numbered, every requirement a card with
+its status, statement, detail tables and fields — beside the open questions by topic. It
+works entirely from the keyboard, with vim keys, and with the mouse.
+
+| | |
+|---|---|
+| `j` `k` `h` `l`, `gg` `G`, `ctrl+d` `ctrl+u` | Move, as in vim |
+| `tab` `shift+tab` | In the reading pane: the next, previous link, highlighted and previewed |
+| `enter` `gd` | Follow the link; the tree moves there too |
+| `ctrl+o` `[` · `]` | Back, forward through the jumps |
+| `/` · `n` `N` | Search · next, previous result |
+| `a` | Accept the highlighted requirement |
+| `t` | Theme |
+| `<` `>` | Sidebar width — or drag the divider |
+| `?` | All keys |
+
+Every requirement and question ID in the reading pane is a link; hovering one shows the
+same preview as `tab`. Themes include GitHub, Xcode, VS Code and Darcula in light and dark
+beside Textual's own (Dracula, Nord, Gruvbox, Tokyo Night, Catppuccin, Solarized …). The
+theme and the sidebar width are remembered per user in `~/.config/reqkit/tui.json`.
+
 ## Status
 
 Every reviewed requirement is `Proposed`, `Accepted` or `Reopened`. `req add` can only
@@ -136,5 +159,5 @@ that could accept its own work would erase the only record of what a human has r
 ## Developing reqkit
 
 ```bash
-python3 -m unittest discover tests
+python3 -m unittest discover tests     # the TUI tests skip without textual
 ```

@@ -160,6 +160,13 @@ class Model:
         num = re.search(r"(\d+)$", r.id)
         return (self.level_order(r.kind), r.prefix, int(num.group(1)) if num else 0, r.id)
 
+    def question(self, qid: str) -> questions.Question | None:
+        return next((q for q in self.questions if q.id == qid), None)
+
+    def knows(self, ident: str) -> bool:
+        """A requirement or an open question by that ID exists."""
+        return ident in self.reqs or self.question(ident) is not None
+
     def refs_for(self, rid: str) -> list[Ref]:
         return [r for r in self.refs if r.id == rid]
 

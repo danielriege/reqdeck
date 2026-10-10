@@ -1,0 +1,4 @@
+id,section,title,statement,rationale,satisfies,topic,source,verification,status,security
+SW_WID_001,sizes,Small,The small widget shall show the number of open tasks due today.,,SYS_007,05,OQ-0501.,T,Accepted,
+SW_WID_002,sizes,Medium,"The medium widget shall list the next three open tasks by due date, earliest first.",,SYS_007,05,OQ-0501.,T,Proposed,
+SW_WID_003,interaction,Tick off in place,Each task in the medium widget shall be tickable without opening the app.,,SYS_007,05,OQ-0502.,D,Proposed,

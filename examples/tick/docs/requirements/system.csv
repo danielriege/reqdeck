@@ -1,0 +1,10 @@
+id,section,title,statement,rationale,satisfies,topic,source,verification,status,security
+SYS_001,capture,Quick capture,"The app shall let a user add a task with a title alone, from launch, in at most two interactions.",,A-01,02,OQ-0201.,D,Accepted,
+SYS_002,capture,Lists,"The system shall organise tasks into any number of user-named lists, one of which is an Inbox that always exists.",,A-06,02,OQ-0202.,D,Accepted,
+SYS_003,reminders,Due reminders,"The system shall notify the user at a task's due time, unless the task is done by then.",,A-02,03,OQ-0301.,T,Accepted,
+SYS_004,reminders,Snooze,"The system shall let a user snooze a reminder by 10 minutes, by 1 hour, or until 09:00 the next day.",,A-02,03,OQ-0301.,T,Proposed,
+SYS_005,sync,Same tasks everywhere,"The system shall make a change visible on every device signed in to the same iCloud account within 30 seconds, while they are online.",,A-03,04,OQ-0401.,T,Proposed,
+SYS_006,sync,Offline first,The system shall work fully without a network connection and sync every change once one returns.,,A-03,04,OQ-0401.,D,Accepted,
+SYS_007,glance,Today on the home screen,"The system shall show the tasks due today on the home screen, without opening the app.",,A-04,05,OQ-0501.,D,Accepted,
+SYS_008,privacy,Nowhere but iCloud,The system shall send task data nowhere but the user's own iCloud private database.,,A-05,06,"OQ-0601, OQ-0401.",I,Accepted,Yes
+SYS_009,sync,Concurrent edits,"The system shall resolve two edits to the same field of a task by keeping the later one, and shall keep edits to different fields.",,A-03,04,"OQ-0402. **Reopened 2026-10-02**: per field, not per task.",T,Reopened,

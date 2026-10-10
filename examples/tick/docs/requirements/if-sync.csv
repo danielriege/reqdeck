@@ -1,0 +1,4 @@
+id,section,title,statement,rationale,satisfies,source,verification,status,security
+IF_SYNC_001,records,Task record,"Each task shall be stored as one `Task` record in the private database, with the fields below.",,SYS_005,"OQ-0401, OQ-0201.",T,Accepted,
+IF_SYNC_002,records,List record,"Each list shall be stored as one `TaskList` record, with the fields below.",,SYS_005,"OQ-0401, OQ-0202.",T,Proposed,
+IF_SYNC_003,merge,Per-field timestamps,"Every record shall carry a modification time per field, and a merge shall keep, field by field, the value with the later time.",Whole-record last-writer-wins lost a title edit on one device when another ticked the same task off.,SYS_009,"OQ-0402. **Reopened 2026-10-02**: a time per field, not per record.",T,Reopened,

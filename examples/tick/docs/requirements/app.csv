@@ -1,0 +1,9 @@
+id,section,title,statement,rationale,satisfies,topic,source,verification,status,security
+SW_APP_001,capture,Focused at launch,"The app shall open with the new-task field focused, so that typing a title and pressing return adds the task to the Inbox.",,SYS_001,02,"OQ-0201, OQ-0202.",D,Accepted,
+SW_APP_002,capture,Task fields,"A task shall have a title, an optional note, an optional due date and a done flag, and no other user-visible field.",,SYS_001,02,OQ-0201.,T,Accepted,
+SW_APP_003,lists,The Inbox,"Every account shall have exactly one Inbox list, which can be neither deleted nor renamed.",,SYS_002 IF_SYNC_002,02,OQ-0202.,T,Accepted,
+SW_APP_004,lists,Manual order,"Tasks in a list shall keep the order the user gave them, with every done task after every open one.",,SYS_002,02,OQ-0203.,T,Proposed,
+SW_APP_005,reminders,One notification per due task,"The app shall keep exactly one pending local notification for each open task with a due date, and none for any other task.",,SYS_003,03,OQ-0301.,T,Accepted,
+SW_APP_006,reminders,Snooze times,"Snoozing shall reschedule a reminder to 10 minutes from now, to 1 hour from now, or to 09:00 local time on the next day.",,SYS_004,03,OQ-0301.,T,Proposed,
+SW_APP_007,sync,Merging a downloaded task,"The app shall merge a downloaded `Task` record into the local task field by field, keeping each field's later value.",,SYS_009 IF_SYNC_003,04,OQ-0402. **Reopened 2026-10-02** with IF_SYNC_003.,T,Reopened,
+SW_APP_008,privacy,No analytics,"The app shall link no analytics, crash-reporting or advertising SDK.",,SYS_008,06,OQ-0601.,I,Accepted,Yes

@@ -1,0 +1,9 @@
+id,section,statement,future
+A-01,a,"As a user, I want to add a task in a couple of seconds, so that capturing a thought never interrupts me.",
+A-02,a,"As a user, I want to be reminded when a task is due, so that I don't have to remember it.",
+A-03,a,"As a user, I want the same tasks on my iPhone and my iPad, so that I can use whichever is at hand.",
+A-04,a,"As a user, I want to see what is due today from the home screen, so that I don't have to open the app.",
+A-05,a,"As a user, I want my tasks to stay private, so that nobody else can read my list.",
+A-06,a,"As a user, I want to group tasks into lists, so that groceries and work don't mix.",
+B-01,b,"As a household member, I want to share a list with my partner, so that we shop from the same list.",Yes
+B-02,b,"As a household member, I want to see who ticked off an item, so that we don't buy it twice.",Yes

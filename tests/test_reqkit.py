@@ -215,6 +215,23 @@ class TestCheck(Base):
         self.assertNotIn("screen.h:", ps)
 
 
+class TestExample(unittest.TestCase):
+    def test_the_bundled_example_passes_check(self):
+        root = Path(__file__).resolve().parent.parent / "examples" / "tick"
+        m = Model.load(config.load(root))
+        self.assertEqual(m.problems(), [])
+        self.assertTrue(any(r.is_test for r in m.refs))
+
+
+class TestTestPaths(Base):
+    def test_test_paths_match_whatever_the_case(self):
+        (self.p.root / ".reqkit.toml").write_text(CONFIG.replace("[markers]", '[markers]\ntest_paths = ["Tests"]'))
+        ops.add(self.p.model(), "SSR_APP", {"statement": "S.", "satisfies": "SR_001", "source": "x",
+                                            "verification": "T"})
+        self.p.write("Tests/ScreenTests.swift", "// @REQ_REF(SSR_APP_001) shows it\n")
+        self.assertTrue(self.p.model().refs[0].is_test)
+
+
 class TestTrace(Base):
     def setUp(self):
         super().setUp()

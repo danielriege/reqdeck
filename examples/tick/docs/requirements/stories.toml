@@ -1,0 +1,14 @@
+level = "STORY"
+prefixes = ["A", "B"]
+title = "User stories"
+description = """
+The root every requirement traces to. `future` marks a direction v1 ships nothing for, which the design must not preclude.
+"""
+
+[[sections]]
+key = "a"
+title = "Persona A — The forgetful individual"
+
+[[sections]]
+key = "b"
+title = "Persona B — The household"

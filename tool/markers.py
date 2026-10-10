@@ -50,7 +50,7 @@ def scan(cfg: Config) -> list[Ref]:
             p = here / name
             rel = str(p.relative_to(cfg.root))
             low = rel.lower()
-            is_test = any(t in low for t in mk.test_paths)
+            is_test = any(t.lower() in low for t in mk.test_paths)
             try:
                 text = p.read_text(errors="replace")
             except OSError:

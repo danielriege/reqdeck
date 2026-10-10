@@ -1,0 +1,55 @@
+# reqkit configuration for Tick — see ../../README.md.
+
+requirements = "docs/requirements"
+questions = "docs/OPEN-QUESTIONS.md"
+
+# Most abstract first. `satisfies` names the levels a requirement may point at.
+
+[[levels]]
+kind = "STORY"
+title = "User story"
+reviewed = false
+traced = false
+separator = "-"
+digits = 2
+
+[[levels]]
+kind = "SYS"
+title = "System requirement"
+satisfies = ["STORY"]
+topic = true
+traced = false
+
+[[levels]]
+kind = "IF"
+title = "Interface requirement"
+satisfies = ["SYS"]
+
+[[levels]]
+kind = "SW"
+title = "Software requirement"
+satisfies = ["SYS", "IF"]
+topic = true
+
+[verification.A]
+name = "Analysis"
+definition = "Calculation or modelling shows the requirement is met."
+
+[verification.I]
+name = "Inspection"
+definition = "Examination of the design, the source or the built app, without running it."
+
+[verification.D]
+name = "Demonstration"
+definition = "Run the app on a device and observe the expected behaviour."
+
+[verification.T]
+name = "Test"
+definition = "An automated test — `swift test` — shows the requirement is met."
+automated = true
+
+[markers]
+test_paths = ["Tests"]
+
+[editor]
+command = "nvim +{line} {file}"

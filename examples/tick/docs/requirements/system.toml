@@ -1,0 +1,27 @@
+level = "SYS"
+prefix = "SYS"
+title = "System requirements"
+description = """
+What Tick must do, independent of how it is built.
+"""
+
+[[sections]]
+key = "capture"
+title = "Capture and lists"
+
+[[sections]]
+key = "reminders"
+title = "Reminders"
+
+[[sections]]
+key = "sync"
+title = "Sync"
+description = "Across devices, through the user's iCloud."
+
+[[sections]]
+key = "glance"
+title = "At a glance"
+
+[[sections]]
+key = "privacy"
+title = "Privacy"

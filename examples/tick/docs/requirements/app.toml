@@ -1,0 +1,27 @@
+level = "SW"
+prefix = "SW_APP"
+title = "App"
+code = true
+description = """
+What the iOS app must do. Its code is `Sources/TickKit`, its tests `Tests/TickKitTests`.
+"""
+
+[[sections]]
+key = "capture"
+title = "Capture"
+
+[[sections]]
+key = "lists"
+title = "Lists"
+
+[[sections]]
+key = "reminders"
+title = "Reminders"
+
+[[sections]]
+key = "sync"
+title = "Sync"
+
+[[sections]]
+key = "privacy"
+title = "Privacy"

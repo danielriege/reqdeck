@@ -1,0 +1,15 @@
+level = "SW"
+prefix = "SW_WID"
+title = "Widget"
+code = true
+description = """
+What the home-screen widget must do.
+"""
+
+[[sections]]
+key = "sizes"
+title = "Sizes"
+
+[[sections]]
+key = "interaction"
+title = "Interaction"

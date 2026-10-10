@@ -1,0 +1,15 @@
+level = "IF"
+prefix = "IF_SYNC"
+title = "Sync interface"
+code = true
+description = """
+The app's records in the CloudKit private database — what every device writes and every device reads.
+"""
+
+[[sections]]
+key = "records"
+title = "Records"
+
+[[sections]]
+key = "merge"
+title = "Merging"

@@ -137,11 +137,12 @@ works entirely from the keyboard, with vim keys, and with the mouse.
 
 | | |
 |---|---|
-| `j` `k` `h` `l`, `gg` `G`, `ctrl+d` `ctrl+u` | Move, as in vim |
-| `enter` | In the tree: into the reading pane |
-| `tab` `shift+tab` | In the reading pane: the next, previous link, highlighted and previewed |
+| `j` `k` `h` `l`, `gg` `G` | Move through the tree, as in vim — the reading pane follows |
+| `tab` `shift+tab` | The next, previous link in the reading pane, previewed beside it |
 | `enter` `gd` | Follow the link; the tree moves there too. A code or test reference opens in the editor |
+| `escape` | Drop the link and its preview |
 | `ctrl+o` `[` · `]` | Back, forward through the jumps |
+| `ctrl+d` `ctrl+u` | Scroll the reading pane |
 | `/` · `n` `N` | Search · next, previous result |
 | `a` | Accept the highlighted requirement |
 | `t` | Theme |

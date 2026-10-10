@@ -8,6 +8,7 @@ are remembered per user in `$XDG_CONFIG_HOME/reqkit/tui.json`.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import re
@@ -40,30 +41,31 @@ STATUS_MARK = {"Accepted": ("A", "accepted"), "Proposed": ("P", "proposed"), "Re
 HELP = """\
 # Keys
 
+The tree always has the cursor; the reading pane shows what it highlights.
+
 | | |
 |---|---|
-| `j` `k` | Down, up — in the tree or the reading pane |
-| `h` `l` | Collapse or go to parent, expand or go in; `l` on a requirement moves to the reading pane, `h` there moves back |
+| `j` `k` | Down, up |
+| `h` `l` | Collapse or go to the parent, expand or go in |
 | `gg` `G` | First, last |
-| `ctrl+d` `ctrl+u` | Half a page down, up |
-| `n` `N` | Next, previous requirement or question in the tree |
-| `tab` `shift+tab` | In the tree: move to the reading pane. In the reading pane: next, previous link, previewed |
-| `enter` `gd` | Follow the selected link — the tree moves there too. On a code or test reference, open it in the editor |
-| `K` | Show the selected link's preview again after `escape` closed it |
+| `n` `N` | Next, previous requirement or question — the search results, while searching |
+| `tab` `shift+tab` | Next, previous link in the reading pane, previewed beside it |
+| `enter` `gd` | Follow the selected link — the tree moves there too. A code or test reference opens in the editor. With no link selected, `enter` opens or closes the node |
+| `escape` | Drop the selected link and its preview; again, clear the search |
+| `K` | Show the selected link's preview again |
 | `ctrl+o` `[` | Back to where you jumped from |
 | `]` | Forward again |
-| `/` | Search — a regex over id, title, statement, detail. `enter` returns to the tree, `escape` clears |
+| `ctrl+d` `ctrl+u` | Scroll the reading pane half a page; `ctrl+e` `ctrl+y` a line |
+| `/` | Search — a regex over id, title, statement, detail. `enter` returns to the tree |
 | `o` | Only open questions |
 | `a` | Accept the highlighted requirement |
 | `<` `>` | Narrow or widen the sidebar — or drag the divider |
-| `enter` | In the tree: into the reading pane, which shows what is highlighted |
-| `1` `2` | Focus the tree, the reading pane |
 | `t` | Theme — previewed as you move, `enter` keeps it |
 | `r` | Reload from disk |
 | `q` | Quit |
 
-Every requirement and question ID in the reading pane is a link — in the fields, the
-statement, the detail tables. Hover one for a preview, click it to go there.
+Every requirement and question ID in the reading pane is a link, and so is every code
+and test reference. Hover one for a preview, click it to go there.
 """
 
 
@@ -117,11 +119,19 @@ class VimTree(Tree):
         Binding("k", "cursor_up", show=False),
         Binding("h", "vim_left", show=False),
         Binding("l", "vim_right", show=False),
-        Binding("enter", "read", show=False),
         Binding("G", "last", show=False),
         Binding("g", "g", show=False),
-        Binding("ctrl+d", "half(1)", show=False),
-        Binding("ctrl+u", "half(-1)", show=False),
+        Binding("d", "d", show=False),
+        # The reading pane is never focused: the tree drives it.
+        Binding("tab", "app.cycle_link(1)", show=False),
+        Binding("shift+tab", "app.cycle_link(-1)", show=False),
+        Binding("enter", "app.follow_or_toggle", show=False),
+        Binding("K", "app.peek_link", show=False),
+        Binding("escape", "app.escape", show=False),
+        Binding("ctrl+d", "app.scroll_view(0.5)", show=False),
+        Binding("ctrl+u", "app.scroll_view(-0.5)", show=False),
+        Binding("ctrl+e", "app.scroll_view(1)", show=False),
+        Binding("ctrl+y", "app.scroll_view(-1)", show=False),
     ]
 
     def __init__(self, *a, **kw):
@@ -145,12 +155,6 @@ class VimTree(Tree):
             node.expand()
         elif node.children:
             self.action_cursor_down()      # an expanded node's first child is the next line
-        else:
-            self.app.query_one("#view").focus()
-
-    def action_read(self) -> None:
-        """Into the reading pane, which already shows what is highlighted."""
-        self.app.query_one("#view").focus()
 
     def action_last(self) -> None:
         self.cursor_line = self.last_line
@@ -159,50 +163,17 @@ class VimTree(Tree):
         if self._g.second():
             self.cursor_line = 0
 
-    def action_half(self, direction: int) -> None:
-        self.cursor_line = max(0, min(self.last_line, self.cursor_line + direction * max(1, self.size.height // 2)))
-
-
-class VimScroll(VerticalScroll):
-    BINDINGS = [
-        Binding("j", "scroll_down", show=False),
-        Binding("k", "scroll_up", show=False),
-        Binding("h", "back", show=False),
-        Binding("escape", "escape", show=False),
-        Binding("tab", "app.cycle_link(1)", show=False),
-        Binding("shift+tab", "app.cycle_link(-1)", show=False),
-        Binding("enter", "app.follow_link", show=False),
-        Binding("d", "d", show=False),
-        Binding("K", "app.peek_link", show=False),
-        Binding("G", "scroll_end", show=False),
-        Binding("g", "g", show=False),
-        Binding("ctrl+d", "half(1)", show=False),
-        Binding("ctrl+u", "half(-1)", show=False),
-    ]
-
-    def __init__(self, *a, **kw):
-        super().__init__(*a, **kw)
-        self._g = GPrefix()
-
-    def action_back(self) -> None:
-        self.app.hide_peek()
-        self.app.query_one("#nav").focus()
-
-    def action_escape(self) -> None:
-        if not self.app.hide_peek():
-            self.action_back()
-
-    def action_g(self) -> None:
-        if self._g.second():
-            self.scroll_home(animate=False)
-
     def action_d(self) -> None:
         """`gd` follows the selected link, as go-to-definition does in nvim."""
         if self._g.pending():
             self.app.action_follow_link()
 
-    def action_half(self, direction: int) -> None:
-        self.scroll_relative(y=direction * max(1, self.size.height // 2), animate=False)
+
+class ReadingPane(VerticalScroll):
+    """Shows what the tree has highlighted. Never focused — the tree drives it,
+    and its links are stepped through from there."""
+
+    can_focus = False
 
 
 class Divider(Widget):
@@ -480,6 +451,7 @@ class ReqkitApp(App):
     #left { width: 60; padding: 0; }
     #left.-searching { border: round $rk-border-search; }
     #view { width: 1fr; padding: 0 1; }
+    #view.-linking { border: round $rk-border-active; }
 
     #search { height: 1; border: none; padding: 0 1; margin: 0 0 1 0; background: transparent;
               color: $rk-foreground; }
@@ -547,8 +519,6 @@ class ReqkitApp(App):
         Binding("a", "accept", "Accept"),
         Binding("o", "toggle_open", "Open questions"),
         Binding("t", "change_theme", "Theme"),
-        Binding("1", "focus_panel('nav')", show=False),
-        Binding("2", "focus_panel('view')", show=False),
         Binding("question_mark", "help", "Keys"),
         Binding("r", "reload", "Reload", show=False),
         Binding("n", "next_match(1)", show=False),
@@ -591,13 +561,13 @@ class ReqkitApp(App):
     def compose(self) -> ComposeResult:
         with Horizontal(id="main"):
             with Vertical(id="left", classes="panel") as left:
-                left.border_title = "[1] Requirements"
+                left.border_title = "Requirements"
                 left.border_subtitle = self.m.cfg.root.name
                 yield Input(placeholder="/ search — regex over id, title, statement, detail", id="search")
                 yield VimTree("reqkit", id="nav")
             yield Divider()
-            view = VimScroll(id="view", classes="panel")
-            view.border_title = "[2] Keys"
+            view = ReadingPane(id="view", classes="panel")
+            view.border_title = "Keys"
             yield view
         yield Static(id="keys")
         yield Static(id="peek")
@@ -644,9 +614,6 @@ class ReqkitApp(App):
                 self.remember()
         self.push_screen(ThemePicker(self.palettes, self.theme), done)
 
-    def action_focus_panel(self, which: str) -> None:
-        self.query_one(f"#{which}").focus()
-
     def on_descendant_focus(self, event: events.DescendantFocus) -> None:
         self.refresh_keys()
 
@@ -656,12 +623,9 @@ class ReqkitApp(App):
             bar = self.query_one("#keys", Static)
         except Exception:
             return
-        in_view = self.focused is not None and self.focused.id == "view"
-        pairs = ([("Next link", "tab"), ("Follow", "enter"), ("Back", "ctrl+o"), ("Tree", "1")]
-                 if in_view else
-                 [("Search", "/"), ("Read", "enter"), ("Expand", "l"), ("Collapse", "h"),
-                  ("Back", "ctrl+o"), ("Only open questions", "o")])
-        pairs += [("Accept", "a"), ("Theme", "t"), ("Keys", "?"), ("Quit", "q")]
+        pairs = [("Search", "/"), ("Next link", "tab"), ("Follow", "enter"), ("Back", "ctrl+o"),
+                 ("Scroll", "ctrl+d/u"), ("Only open questions", "o"), ("Accept", "a"),
+                 ("Theme", "t"), ("Keys", "?"), ("Quit", "q")]
         parts: list = []
         for i, (action, key) in enumerate(pairs):
             if i:
@@ -860,18 +824,20 @@ class ReqkitApp(App):
             return key
         return "Keys"
 
-    def show(self, data, sel: str = "") -> None:
-        """Render `data` in the reading pane. With `sel`, the same view again with
-        that link under the cursor, scrolled where it was."""
+    def show(self, data, sel: str = "", keep: bool = False) -> None:
+        """Render `data` in the reading pane. With `sel`, or `keep`, the same view
+        again — `sel` the link under the cursor — scrolled where it was."""
+        keep = keep or bool(sel)
         if not data:
             return
         widgets = self._widgets_for(data, sel)
         if not widgets:
             return
-        view = self.query_one("#view", VimScroll)
-        view.border_title = f"[2] {self._title_for(data)}"
+        view = self.query_one("#view", ReadingPane)
+        view.border_title = self._title_for(data)
         scroll = view.scroll_y
-        if not sel:
+        view.set_class(bool(sel), "-linking")
+        if not keep:
             self.hide_peek()
             self.shown = data
             # A document's links are its cards; anything else's are read off
@@ -886,6 +852,9 @@ class ReqkitApp(App):
                 page.remove()
             view.mount(Vertical(*widgets, classes="page"))
         if sel:
+            # The link preview restores this, in order with revealing the link.
+            self._restore_scroll = scroll
+        elif keep:
             self.call_after_refresh(view.scroll_to, y=scroll, animate=False)
         else:
             view.scroll_home(animate=False)
@@ -1023,7 +992,8 @@ class ReqkitApp(App):
         peek.update(content)
         peek.border_title = title
         width = 66
-        height = min(18, len(content.wrap(width - 4)) + 2)
+        # The height it will be drawn at: border 2, padding 2, at most 18 rows.
+        height = min(18, peek.get_content_height(self.size, self.size, width - 4) + 2)
         bottom = self.size.height - 1                     # the hint line
         if cell is None:
             view = self.query_one("#view").region
@@ -1035,6 +1005,8 @@ class ReqkitApp(App):
         peek.display = True
 
     def hide_peek(self) -> bool:
+        # A preview still being placed would reappear after this.
+        self.workers.cancel_group(self, "peek")
         peek = self.query_one("#peek", Static)
         shown = bool(peek.display)
         peek.display = False
@@ -1109,6 +1081,8 @@ class ReqkitApp(App):
             return
         self.link_index = (self.link_index + direction) % len(links)
         target = links[self.link_index]
+        # The last preview may cover the next link, which then cannot be found on screen.
+        self.hide_peek()
         kind = self.shown[0] if self.shown else ""
         if kind in ("unit", "section"):
             # A document: the cursor is on whole cards, so no re-render is needed.
@@ -1118,37 +1092,77 @@ class ReqkitApp(App):
                 card = self.query(f"#card-{target}").last()
                 card.add_class("-selected")
                 card.scroll_visible(animate=False, top=True)
+                self.query_one("#view").add_class("-linking")
             except Exception:
                 pass
-            self.call_after_refresh(self.action_peek_link)
+            self.action_peek_link()
         else:
             self.show(self.shown, sel=target)
-            self.call_after_refresh(self._reveal_link, target)
+            self.action_peek_link(reveal=True)
 
-    def _reveal_link(self, target: str) -> None:
-        w = self._holder(target)
-        if w is not None:
-            w.scroll_visible(animate=False)
-        self.call_after_refresh(self.action_peek_link)
-
-    def action_peek_link(self) -> None:
+    def action_peek_link(self, reveal: bool = False) -> None:
+        """Preview the selected link beside it — in a worker, since the page may
+        not be drawn yet and the link may first have to be scrolled to. A newer
+        `tab` cancels an older one still looking."""
         links = self._ensure_links()
         if not links:
             return
         if self.link_index < 0:
             self.link_index = 0
-        target = links[self.link_index]
+        self.run_worker(self._peek(links[self.link_index], reveal), exclusive=True, group="peek")
+
+    async def _frame(self) -> None:
+        await asyncio.sleep(0.02)
+
+    async def _still(self, view: Widget) -> None:
+        """Until the pane has stopped scrolling: scroll_visible lands a frame or two late."""
+        last = None
+        for _ in range(10):
+            await self._frame()
+            if view.scroll_y == last:
+                return
+            last = view.scroll_y
+
+    async def _peek(self, target: str, reveal: bool) -> None:
+        links = self.links or []
         verb = f"enter opens in {editor.command(self.m.cfg.editor, 'x', 1)[0][0].rsplit('/', 1)[-1]}" \
             if target.startswith("ref:") else "enter to follow"
         title = f" link {self.link_index + 1}/{len(links)} · {verb} "
+        view = self.query_one("#view", ReadingPane)
+        spot = None
         if self.shown and self.shown[0] in ("unit", "section"):
+            await self._frame()
             try:
                 card = self.query(f"#card-{target}").last().region
                 spot = (card.x + 2, card.y + 1)     # the ID in the card's head, as a hover sees it
             except Exception:
-                spot = None
+                pass
         else:
-            spot = self._locate(target)
+            holder = None
+            for _ in range(15):                     # the page mounted, laid out and drawn
+                holder = self._holder(target)
+                if holder is not None and holder.region.height:
+                    break
+                await self._frame()
+            if holder is not None:
+                if reveal:
+                    view.scroll_to(y=getattr(self, "_restore_scroll", 0), animate=False)
+                    await self._still(view)
+                    holder.scroll_visible(animate=False)
+                    await self._still(view)
+                for _ in range(40):                 # down through a tall widget, a page at a time
+                    spot = self._locate(target)
+                    if spot is not None:
+                        break
+                    await self._frame()
+                    spot = self._locate(target)
+                    if spot is not None or not reveal:
+                        break
+                    inside = holder.region.bottom > view.region.bottom - 1
+                    if not inside or view.scroll_y >= view.max_scroll_y:
+                        break
+                    view.scroll_relative(y=max(1, view.size.height - 2), animate=False)
+                    await self._still(view)
         self.show_peek(target, spot, title)
 
     def open_in_editor(self, file: str, line: int) -> None:
@@ -1167,6 +1181,40 @@ class ReqkitApp(App):
                                  start_new_session=True)
         except Exception as e:   # a missing editor, or no terminal to hand over
             self.notify(f"Could not run {argv[0]}: {e}", severity="error")
+
+    def action_follow_or_toggle(self) -> None:
+        """`enter`: follow the selected link, or with none selected open or close the node."""
+        if self.link_index >= 0:
+            self.action_follow_link()
+            return
+        tree = self.query_one("#nav", Tree)
+        node = tree.cursor_node
+        if node is not None and node.allow_expand:
+            node.toggle()
+
+    def drop_link(self) -> bool:
+        """Clear the link cursor and its preview. Whether there was one."""
+        if self.link_index < 0 and not self.hide_peek():
+            return False
+        self.hide_peek()
+        had = self.link_index >= 0
+        self.link_index = -1
+        view = self.query_one("#view")
+        view.remove_class("-linking")
+        for card in self.query(".card.-selected"):
+            card.remove_class("-selected")
+        if had and self.shown and self.shown[0] not in ("unit", "section"):
+            self.show(self.shown, keep=True)
+        return True
+
+    def action_escape(self) -> None:
+        if not self.drop_link():
+            self.action_clear()
+
+    def action_scroll_view(self, pages: float) -> None:
+        view = self.query_one("#view")
+        lines = int(pages * max(1, view.size.height)) if abs(pages) < 1 else int(pages)
+        view.scroll_relative(y=lines, animate=False)
 
     def action_follow_link(self) -> None:
         self._ensure_links()

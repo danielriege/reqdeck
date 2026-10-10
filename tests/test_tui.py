@@ -54,6 +54,13 @@ class TuiTest(unittest.TestCase):
         asyncio.run(go())
 
     @staticmethod
+    async def settle(app, pilot):
+        """Until the link preview has been placed — it is found and drawn in a worker."""
+        await pilot.pause()
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+
+    @staticmethod
     def cursor(app):
         return app.query_one("#nav").cursor_node.data
 
@@ -65,9 +72,7 @@ class TuiTest(unittest.TestCase):
             self.assertEqual(self.cursor(app), ("req", "A-01"))
             await pilot.press("h")                     # back to the unit
             self.assertEqual(self.cursor(app), ("unit", "stories"))
-            await pilot.press("enter")                 # into the reading pane, on the story
-            self.assertEqual(app.focused.id, "view")
-            await pilot.press("h")                     # and back
+            await pilot.press("tab")                   # A-01 links nowhere: the tree keeps the cursor
             self.assertEqual(app.focused.id, "nav")
             tree = app.query_one("#nav")
             await pilot.press("G")
@@ -81,9 +86,8 @@ class TuiTest(unittest.TestCase):
             app.action_goto("SR_002")
             await pilot.pause()
             self.assertEqual(self.cursor(app), ("req", "SR_002"))
-            app.query_one("#view").focus()
             await pilot.press("tab")                   # first link, previewed and highlighted
-            await pilot.pause()
+            await self.settle(app, pilot)
             # Reading order: the statement, the source, then the chain.
             self.assertEqual(app.links, ["SR_001", "OQ-0102", "A-01", "SSR_APP_001"])
             self.assertTrue(app.query_one("#peek").display)
@@ -127,10 +131,9 @@ class TuiTest(unittest.TestCase):
         async def steps(app, pilot):
             app.action_goto("SR_002")
             await pilot.pause()
-            app.query_one("#view").focus()
             for _ in range(3):                         # onto A-01, in the chain
                 await pilot.press("tab")
-                await pilot.pause()
+                await self.settle(app, pilot)
             self.assertEqual(app.links[app.link_index], "A-01")
             by_key = tuple(app.query_one("#peek").styles.offset)
             x, y = app._locate("A-01")
@@ -150,10 +153,9 @@ class TuiTest(unittest.TestCase):
                 await pilot.pause()
                 app.action_goto("SR_002")
                 await pilot.pause()
-                app.query_one("#view").focus()
                 for _ in range(len(app._ensure_links())):
                     await pilot.press("tab")
-                    await pilot.pause()
+                    await self.settle(app, pilot)
                     target = app.links[app.link_index]
                     cell = app._locate(target)
                     self.assertIsNotNone(cell, target)
@@ -173,14 +175,13 @@ class TuiTest(unittest.TestCase):
             from unittest import mock
             app.action_goto("SSR_APP_001")
             await pilot.pause()
-            app.query_one("#view").focus()
             await pilot.press("tab")
-            await pilot.pause()
+            await self.settle(app, pilot)
             # The source names OQ-0101; then the chain; then code and test.
             self.assertEqual(app.links, ["OQ-0101", "SR_002", "ref:src/screen.h:2",
                                          "ref:tests/screen_test.c:1"])
             await pilot.press("tab", "tab")
-            await pilot.pause()
+            await self.settle(app, pilot)
             peek = app.query_one("#peek")
             self.assertTrue(peek.display)
             self.assertIn("void show(void);", str(peek.content))
@@ -196,16 +197,44 @@ class TuiTest(unittest.TestCase):
             self.assertEqual(self.cursor(app), ("req", "SSR_APP_001"))   # still there after the reload
         self.run_app(steps)
 
+    def test_escape_drops_the_link_then_the_search_and_enter_toggles(self):
+        async def steps(app, pilot):
+            app.action_goto("SR_002")
+            await pilot.pause()
+            view = app.query_one("#view")
+            await pilot.press("tab")
+            await self.settle(app, pilot)
+            self.assertTrue(view.has_class("-linking"))
+            await pilot.press("escape")
+            await pilot.pause()
+            self.assertEqual(app.link_index, -1)
+            self.assertFalse(view.has_class("-linking"))
+            self.assertFalse(app.query_one("#peek").display)
+            self.assertEqual(self.cursor(app), ("req", "SR_002"))
+            await pilot.press("slash", *"Glow", "enter")
+            await pilot.pause()
+            self.assertEqual(app.query_text, "Glow")
+            await pilot.press("escape")
+            await pilot.pause()
+            self.assertEqual(app.query_text, "")
+            tree = app.query_one("#nav")
+            tree.cursor_line = 0                       # "Requirements", expanded
+            await pilot.pause()
+            await pilot.press("enter")
+            await pilot.pause()
+            self.assertFalse(tree.cursor_node.is_expanded)
+            self.assertEqual(app.focused.id, "nav")
+        self.run_app(steps)
+
     def test_document_cursor_steps_through_cards(self):
         async def steps(app, pilot):
             app._move_to(("unit", "system"))
             await pilot.pause()
-            app.query_one("#view").focus()
             await pilot.press("tab")
-            await pilot.pause()
+            await self.settle(app, pilot)
             self.assertTrue(app.query_one("#card-SR_001").has_class("-selected"))
             await pilot.press("tab")
-            await pilot.pause()
+            await self.settle(app, pilot)
             self.assertFalse(app.query_one("#card-SR_001").has_class("-selected"))
             self.assertTrue(app.query_one("#card-SR_002").has_class("-selected"))
             await pilot.press("enter")

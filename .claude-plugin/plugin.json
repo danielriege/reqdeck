@@ -1,0 +1,10 @@
+{
+  "name": "reqdeck",
+  "version": "0.1.0",
+  "description": "Requirements engineering for AI-agent coding: open questions decided by you, requirements derived from the answers, traced to code and tests. The skills for the reqdeck CLI and its method.",
+  "author": { "name": "Daniel Riege" },
+  "homepage": "https://github.com/danielriege/reqdeck",
+  "repository": "https://github.com/danielriege/reqdeck",
+  "license": "MIT",
+  "keywords": ["requirements", "traceability", "v-model", "testing"]
+}

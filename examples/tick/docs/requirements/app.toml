@@ -3,7 +3,7 @@ prefix = "SW_APP"
 title = "App"
 code = true
 description = """
-What the iOS app must do. Its code is `Sources/TickKit`, its tests `Tests/TickKitTests`.
+What the iOS app must do. Its code is in `Sources/`, its tests in `Tests/`.
 """
 
 [[sections]]

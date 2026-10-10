@@ -1,9 +1,9 @@
-"""The reqkit TUI: requirements as documents, with their sections, and the open
+"""The reqdeck TUI: requirements as documents, with their sections, and the open
 questions beside them. Reads through the same model as the CLI and writes
 through the same operations.
 
 Needs `textual`, which the CLI does not. The chosen theme and sidebar width
-are remembered per user in `$XDG_CONFIG_HOME/reqkit/tui.json`.
+are remembered per user in `$XDG_CONFIG_HOME/reqdeck/tui.json`.
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ from .cli import load_model
 from .model import Model, Req
 
 ID_RE = re.compile(r"\b(?:OQ-\d{4}|[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*[_-]\d+)\b")
-TARGET_RE = re.compile(r"(?:goto|link)\('(?:reqkit:)?([^']+)'\)")
+TARGET_RE = re.compile(r"(?:goto|link)\('(?:reqdeck:)?([^']+)'\)")
 
 #: Status letter in the tree, and the theme role that colours it.
 STATUS_MARK = {"Accepted": ("A", "accepted"), "Proposed": ("P", "proposed"), "Reopened": ("R", "reopened")}
@@ -73,7 +73,7 @@ and test reference. Hover one for a preview, click it to go there.
 
 def _prefs_path() -> Path:
     base = os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config")
-    return Path(base) / "reqkit" / "tui.json"
+    return Path(base) / "reqdeck" / "tui.json"
 
 
 def load_prefs() -> dict:
@@ -349,7 +349,7 @@ def linked_md(m: Model, text: str, sel: str = "") -> str:
         rid = mm.group(0)
         if not m.knows(rid):
             return rid
-        return f"[**▸ {rid}**](reqkit:{rid})" if rid == sel else f"[{rid}](reqkit:{rid})"
+        return f"[**▸ {rid}**](reqdeck:{rid})" if rid == sel else f"[{rid}](reqdeck:{rid})"
 
     out = []
     for i, chunk in enumerate(text.split("`")):
@@ -435,8 +435,8 @@ def heading(text: str, level: int = 1) -> Static:
 
 # ----------------------------------------------------------------------- app
 
-class ReqkitApp(App):
-    TITLE = "reqkit"
+class ReqdeckApp(App):
+    TITLE = "reqdeck"
     CSS = """
     Screen { background: transparent; layers: default overlay; }
     * { scrollbar-background: transparent; scrollbar-background-hover: transparent;
@@ -528,12 +528,11 @@ class ReqkitApp(App):
         Binding("q", "quit", "Quit"),
     ]
 
-    def __init__(self, script: Path | None = None):
+    def __init__(self):
         # ansi_color leaves the terminal's own background unpainted: with it
         # off Textual fills every cell.
         super().__init__(ansi_color=True)
-        self.script = script
-        self.m: Model = load_model(script)
+        self.m: Model = load_model()
         self.query_text = ""
         self.open_only = False
         self.nodes: dict[str, TreeNode] = {}
@@ -566,7 +565,7 @@ class ReqkitApp(App):
                 left.border_title = "Requirements"
                 left.border_subtitle = self.m.cfg.root.name
                 yield Input(placeholder="/ search — regex over id, title, statement, detail", id="search")
-                yield VimTree("reqkit", id="nav")
+                yield VimTree("reqdeck", id="nav")
             yield Divider()
             view = ReadingPane(id="view", classes="panel")
             view.border_title = "Keys"
@@ -1006,10 +1005,11 @@ class ReqkitApp(App):
     def action_help(self) -> None:
         self.show(("help", None))
 
-    def action_reload(self) -> None:
-        self.m = load_model(self.script)
+    def action_reload(self, quiet: bool = False) -> None:
+        self.m = load_model()
         self.relabel()          # rebuilds the tree, keeping the cursor where it was
-        self.notify("Reloaded")
+        if not quiet:
+            self.notify("Reloaded")
 
     def action_next_match(self, direction: int) -> None:
         tree = self.query_one("#nav", Tree)
@@ -1150,9 +1150,9 @@ class ReqkitApp(App):
 
     @on(Markdown.LinkClicked)
     def _markdown_link(self, event: Markdown.LinkClicked) -> None:
-        if event.href.startswith("reqkit:"):
+        if event.href.startswith("reqdeck:"):
             event.stop()
-            self.action_goto(event.href.removeprefix("reqkit:"))
+            self.action_goto(event.href.removeprefix("reqdeck:"))
 
     def _page(self) -> Widget | None:
         pages = list(self.query_one("#view").query(".page"))
@@ -1162,7 +1162,7 @@ class ReqkitApp(App):
     def _targets_in(w: Widget) -> list[str]:
         """Link targets a widget draws, in order."""
         if isinstance(w, Markdown):
-            return re.findall(r"\(reqkit:([^)\s]+)\)", w.source)
+            return re.findall(r"\(reqdeck:([^)\s]+)\)", w.source)
         if isinstance(w, Static) and isinstance(w.content, Content):
             spans = sorted(w.content.spans, key=lambda sp: sp.start)
             return [mm.group(1) for sp in spans if (mm := TARGET_RE.search(str(sp.style)))]
@@ -1301,7 +1301,7 @@ class ReqkitApp(App):
             if terminal:
                 with self.suspend():
                     subprocess.run(argv, cwd=self.m.cfg.root)
-                self.action_reload()
+                self.action_reload(quiet=True)
             else:
                 subprocess.Popen(argv, cwd=self.m.cfg.root, stdin=subprocess.DEVNULL,
                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
@@ -1447,6 +1447,6 @@ class ReqkitApp(App):
         self.push_screen(Confirm(f"Accept {r.id} — {r.label}?\n\nYou have read it and agree with it."), done)
 
 
-def main(script: Path | None = None) -> int:
-    ReqkitApp(script).run()
+def main() -> int:
+    ReqdeckApp().run()
     return 0

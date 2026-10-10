@@ -1,7 +1,7 @@
 """The requirement model: everything loaded, linked and queryable.
 
-    from tool.config import find_root, load
-    from tool.model import Model
+    from reqdeck.config import find_root, load
+    from reqdeck.model import Model
 
     m = Model.load(load(find_root()))
     m.reqs["TSR_009"].statement
@@ -50,7 +50,7 @@ class Req:
     #: not security relevant, so nothing is written on the majority.
     security: str = ""
     section: str = ""
-    #: Columns reqkit does not interpret, kept as they are.
+    #: Columns reqdeck does not interpret, kept as they are.
     extra: dict[str, str] = field(default_factory=dict)
     #: Multi-line markdown from the unit's details file.
     detail: str = ""
@@ -267,7 +267,7 @@ class Model:
         for u in self.units:
             rel = cfg.rel(u.toml_path)
             if u.level not in kinds:
-                out.append(f"{rel}: level {u.level!r} is not a level in {cfg.root.name}/.reqkit.toml")
+                out.append(f"{rel}: level {u.level!r} is not a level in {cfg.root.name}/.reqdeck.toml")
             if not u.prefixes:
                 out.append(f"{rel}: no prefix")
             for p in u.prefixes:
@@ -289,7 +289,7 @@ class Model:
                 try:
                     rows = store.read_rows(u)
                     if not store.is_canonical(u, rows):
-                        out.append(f"{cfg.rel(u.csv_path)}: not in canonical form — run `req fmt`")
+                        out.append(f"{cfg.rel(u.csv_path)}: not in canonical form — run `reqdeck fmt`")
                 except store.StoreError:
                     pass
 

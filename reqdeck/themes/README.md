@@ -1,7 +1,7 @@
 # Themes
 
 One file per theme, named after the [Textual theme](https://textual.textualize.io/guide/design/)
-it extends. Textual supplies the base colours; the file adds every colour reqkit draws
+it extends. Textual supplies the base colours; the file adds every colour reqdeck draws
 with, taken from that theme's own palette, in the roles below. Nothing paints a
 background — the terminal's own shows through — so a role is a text or border colour,
 except `selection`, the one filled row.
@@ -27,5 +27,5 @@ except `selection`, the one filled row.
 | `open` `answered` | An open question's state |
 | `keys` | Key names in the hint line |
 
-A theme in `~/.config/reqkit/themes/` is loaded as well, and replaces a bundled one of the
+A theme in `~/.config/reqdeck/themes/` is loaded as well, and replaces a bundled one of the
 same name. Its `extends` names the Textual theme to start from.

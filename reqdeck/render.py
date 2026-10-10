@@ -1,4 +1,4 @@
-"""Markdown views of the model, shared by `req doc --markdown` and the TUI."""
+"""Markdown views of the model, shared by `reqdeck doc --markdown` and the TUI."""
 
 from __future__ import annotations
 

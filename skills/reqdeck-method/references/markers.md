@@ -1,6 +1,6 @@
 # `@REQ_REF` — referencing requirements from code and tests
 
-`req` scans the source tree for markers and links them to requirements. That link is
+`reqdeck` scans the source tree for markers and links them to requirements. That link is
 what makes `coverage` and `trace` statements about the code rather than about intentions.
 
 ```
@@ -22,7 +22,7 @@ File stems listed in `interface_suffixes` are rejected.
 **Once, on the declaration.** Where a language splits declaration and implementation (C,
 C++, Objective-C), the marker goes on the header and never also in the `.c` — a promise
 restated in two places is one that can disagree. `declaration_extensions` in
-`.reqkit.toml` enforces this; languages with one file per type (Swift, Kotlin, Python)
+`.reqdeck.toml` enforces this; languages with one file per type (Swift, Kotlin, Python)
 mark the type's declaration.
 
 **In a test, on the test function — never on the fixture.** A fixture covers whatever its

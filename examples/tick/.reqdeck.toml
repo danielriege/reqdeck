@@ -1,4 +1,4 @@
-# reqkit configuration for Tick — see ../../README.md.
+# reqdeck configuration for Tick — see ../../README.md.
 
 requirements = "docs/requirements"
 questions = "docs/OPEN-QUESTIONS.md"

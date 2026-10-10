@@ -1,4 +1,4 @@
-"""The `req` command line. Logic lives in the model; this file only asks and prints.
+"""The `reqdeck` command line. Logic lives in the model; this file only asks and prints.
 
 Every command takes --json for machine-readable output.
 """
@@ -13,7 +13,7 @@ import sys
 from dataclasses import asdict
 from pathlib import Path
 
-from . import config, ops, render, store
+from . import __version__, config, ops, render, store
 from .config import STATUS
 from .markers import Ref
 from .model import Model, Req, split
@@ -393,7 +393,7 @@ def cmd_levels(m: Model, args) -> int:
 def cmd_doc(m: Model, args) -> int:
     unit = m.unit(args.unit)
     if unit is None:
-        return _err(f"No unit {args.unit!r}. `req levels` lists them.")
+        return _err(f"No unit {args.unit!r}. `reqdeck levels` lists them.")
     if args.json:
         entries = []
         for e in m.document(unit):
@@ -486,7 +486,7 @@ def cmd_fmt(m: Model, args) -> int:
 def cmd_unit(m: Model, args) -> int:
     lv = m.cfg.level(args.level)
     if lv is None:
-        return _err(f"No level {args.level!r} in .reqkit.toml — one of "
+        return _err(f"No level {args.level!r} in .reqdeck.toml — one of "
                     f"{', '.join(x.kind for x in m.cfg.levels)}")
     prefixes = split(args.prefix)
     for p in prefixes:
@@ -547,9 +547,16 @@ def cmd_url(m: Model, args) -> int:
 # ------------------------------------------------------------------------- main
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="req", description="Requirement query and traceability.")
+    p = argparse.ArgumentParser(prog="reqdeck", description="Requirements, open questions and traceability.")
+    p.add_argument("--version", action="version", version=f"reqdeck {__version__}")
     p.add_argument("--json", action="store_true", help="machine-readable output")
     sub = p.add_subparsers(dest="cmd", required=True)
+
+    sub.add_parser("init", help="set this directory up as a reqdeck project, asking as it goes")
+    sub.add_parser("tui", help="browse the requirements and open questions")
+    sk = sub.add_parser("skills", help="copy the agent skills into .claude/skills and .agents/skills")
+    sk.add_argument("--update", action="store_true",
+                    help="replace reqdeck's own copies with this version's; never a folder of yours")
 
     g = sub.add_parser("get", help="one requirement, with its chain up and down")
     g.add_argument("id")
@@ -561,7 +568,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.set_defaults(fn=cmd_search)
 
     ls = sub.add_parser("list", help="all requirements, filterable")
-    ls.add_argument("--kind", help="a level from .reqkit.toml, e.g. TSR")
+    ls.add_argument("--kind", help="a level from .reqdeck.toml, e.g. TSR")
     ls.add_argument("--unit", help="file stem or prefix, e.g. firmware-node or TSSR_FWN")
     ls.add_argument("--topic", help="OPEN-QUESTIONS topic number, e.g. 06")
     ls.add_argument("--section", help="section key; includes its subsections")
@@ -616,7 +623,7 @@ def build_parser() -> argparse.ArgumentParser:
     a.add_argument("--section", default="", help="section key from the unit's .toml")
     a.add_argument("--security", action="store_true", help="carries a security property")
     a.add_argument("--field", nargs=2, action="append", metavar=("COLUMN", "VALUE"),
-                   help="a column of this unit that reqkit does not interpret")
+                   help="a column of this unit that reqdeck does not interpret")
     a.set_defaults(fn=cmd_add)
 
     e = sub.add_parser("edit", help="change fields of an existing requirement")
@@ -648,18 +655,47 @@ def build_parser() -> argparse.ArgumentParser:
     return p
 
 
-def load_model(script: Path | None = None, scan: bool = True) -> Model:
-    root = config.find_root(script=script)
+def load_model(scan: bool = True) -> Model:
+    root = config.find_root()
     if root is None:
         raise config.ConfigError(f"No {config.CONFIG_NAME} found here or above. "
-                                 f"Run reqkit's init.sh in the project root, or set REQKIT_ROOT.")
+                                 f"Run `reqdeck init` in the project root, or set REQDECK_ROOT.")
     return Model.load(config.load(root), scan=scan)
 
 
-def main(argv=None, script: Path | None = None) -> int:
+def cmd_skills(args) -> int:
+    from .init import SKILL_DIRS, copy_skills
+    root = config.find_root()
+    if root is None:
+        return _err(f"No {config.CONFIG_NAME} found here or above — run `reqdeck init` first.")
+    written, kept = copy_skills(root, list(SKILL_DIRS), update=args.update)
+    for w in written:
+        print(f"wrote {w}")
+    for k in kept:
+        print(f"kept  {k}" + ("" if args.update else "  — --update replaces reqdeck's own copies"))
+    return 0
+
+
+def main(argv=None) -> int:
     args = build_parser().parse_args(argv)
+    if args.cmd == "init":
+        from .init import run
+        return run(Path.cwd())
+    if args.cmd == "skills":
+        return cmd_skills(args)
+    if args.cmd == "tui":
+        try:
+            from .viewer import main as tui
+        except ModuleNotFoundError as e:
+            if e.name in ("textual", "rich"):
+                return _err("The TUI needs textual: pip install textual")
+            raise
+        try:
+            return tui()
+        except config.ConfigError as e:
+            return _err(str(e))
     try:
-        m = load_model(script, scan=args.cmd not in ("add", "edit", "fmt", "unit", "url", "levels",
+        m = load_model(scan=args.cmd not in ("add", "edit", "fmt", "unit", "url", "levels",
                                                       "verification", "questions", "doc"))
     except config.ConfigError as e:
         print(e, file=sys.stderr)

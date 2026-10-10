@@ -1,16 +1,17 @@
 # Tick
 
-A made-up iOS to-do app, specified the reqkit way. No app here — just its brief, its open
+A made-up iOS to-do app, specified the reqdeck way. No app here — just its brief, its open
 questions, its requirements on four levels, and three Swift files that carry `@REQ_REF`
 markers. Enough to poke at.
 
 ```bash
+pip install reqdeck
 cd examples/tick
-../../tui.py                   # browse it — needs: pip install textual
-../../req.py check             # valid?
-../../req.py coverage          # what is untested, uncoded, unreviewed
-../../req.py get SW_APP_006    # one requirement, its chain and its code
-../../req.py questions --open  # what is still undecided
+reqdeck tui                 # browse it
+reqdeck check               # valid?
+reqdeck coverage            # what is untested, uncoded, unreviewed
+reqdeck get SW_APP_006      # one requirement, its chain and its code
+reqdeck questions --open    # what is still undecided
 ```
 
 | | |
@@ -23,6 +24,6 @@ cd examples/tick
 The gaps are on purpose. `SYS_006` has nothing beneath it, `SW_APP_003` has no code, ten
 requirements still wait for a human to review them, and an open question blocks two stories
 nobody has written requirements for yet. That is what a project looks like halfway, and what
-`req coverage` is for.
+`reqdeck coverage` is for.
 
 The code does not build — it is there to be pointed at.

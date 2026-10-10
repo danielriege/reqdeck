@@ -21,7 +21,7 @@ import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
-#: Columns reqkit understands, in the order a new file gets them. Any other
+#: Columns reqdeck understands, in the order a new file gets them. Any other
 #: column is kept, shown, and otherwise left alone.
 STANDARD = ["id", "section", "title", "statement", "rationale", "satisfies", "topic",
             "source", "verification", "status", "security"]
@@ -157,7 +157,7 @@ def append_row(unit: Unit, row: dict[str, str]) -> int:
 
 
 def is_canonical(unit: Unit, rows: list[Row]) -> bool:
-    """Whether the file is byte-for-byte what reqkit itself would write."""
+    """Whether the file is byte-for-byte what reqdeck itself would write."""
     return unit.csv_path.read_text() == render_csv(unit.header, [r.values for r in rows])
 
 

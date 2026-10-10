@@ -14,8 +14,8 @@ try:
 except ModuleNotFoundError:
     textual = None
 
-from test_reqkit import Project  # noqa: E402
-from tool import ops  # noqa: E402
+from test_reqdeck import Project  # noqa: E402
+from reqdeck import ops  # noqa: E402
 
 
 @unittest.skipIf(textual is None, "textual is not installed")
@@ -44,10 +44,10 @@ class TuiTest(unittest.TestCase):
         self.p.close()
 
     def run_app(self, steps):
-        from tool.viewer import ReqkitApp
+        from reqdeck.viewer import ReqdeckApp
 
         async def go():
-            app = ReqkitApp()
+            app = ReqdeckApp()
             async with app.run_test(size=(160, 48)) as pilot:
                 await pilot.pause()
                 await steps(app, pilot)
@@ -145,10 +145,10 @@ class TuiTest(unittest.TestCase):
         self.run_app(steps)
 
     def test_preview_never_covers_its_link(self):
-        from tool.viewer import ReqkitApp
+        from reqdeck.viewer import ReqdeckApp
 
         async def go():
-            app = ReqkitApp()
+            app = ReqdeckApp()
             async with app.run_test(size=(120, 24)) as pilot:   # short, so some must flip above
                 await pilot.pause()
                 app.action_goto("SR_002")
@@ -166,8 +166,8 @@ class TuiTest(unittest.TestCase):
     def test_code_references_preview_and_open_in_the_editor(self):
         self.p.write("src/screen.h", "#pragma once\n// @REQ_REF(SSR_APP_001) shows it\nvoid show(void);\n")
         self.p.write("tests/screen_test.c", "// @REQ_REF(SSR_APP_001) shows it\nTEST(Screen, Shows) {}\n")
-        (self.p.root / ".reqkit.toml").write_text(
-            (self.p.root / ".reqkit.toml").read_text() + '\n[editor]\ncommand = "nvim +{line} {file}"\n')
+        (self.p.root / ".reqdeck.toml").write_text(
+            (self.p.root / ".reqdeck.toml").read_text() + '\n[editor]\ncommand = "nvim +{line} {file}"\n')
         ran = []
 
         async def steps(app, pilot):
@@ -189,7 +189,7 @@ class TuiTest(unittest.TestCase):
             self.assertIn("void show(void);", refs)            # the origin, not the description
             self.assertNotIn("shows it", refs)
             self.assertIn("enter opens in nvim", str(peek.border_title))
-            with mock.patch("tool.viewer.subprocess.run", side_effect=lambda argv, **kw: ran.append(argv)), \
+            with mock.patch("reqdeck.viewer.subprocess.run", side_effect=lambda argv, **kw: ran.append(argv)), \
                     mock.patch.object(type(app), "suspend", lambda self: contextlib.nullcontext()):
                 await pilot.press("enter")
                 await pilot.pause()
@@ -308,7 +308,7 @@ class TuiTest(unittest.TestCase):
             await pilot.pause()
         self.run_app(steps)
         import json
-        prefs = json.loads(Path(self.cfg.name, "reqkit", "tui.json").read_text())
+        prefs = json.loads(Path(self.cfg.name, "reqdeck", "tui.json").read_text())
         self.assertEqual(prefs["theme"], "dracula")
 
         async def again(app, pilot):
@@ -316,7 +316,7 @@ class TuiTest(unittest.TestCase):
         self.run_app(again)
 
     def test_every_bundled_theme_is_complete(self):
-        from tool import themes
+        from reqdeck import themes
         palettes = themes.load_all()
         self.assertGreaterEqual(len(palettes), 19)
         for p in palettes.values():
@@ -324,8 +324,8 @@ class TuiTest(unittest.TestCase):
             self.assertIn("rk-border-active", p.theme().variables)
 
     def test_a_broken_user_theme_is_named(self):
-        from tool import themes
-        bad = Path(self.cfg.name, "reqkit", "themes")
+        from reqdeck import themes
+        bad = Path(self.cfg.name, "reqdeck", "themes")
         bad.mkdir(parents=True)
         (bad / "mine.toml").write_text('extends = "nord"\n[colors]\nforeground = "#ffffff"\n')
         with self.assertRaises(themes.ThemeError) as e:

@@ -16,7 +16,7 @@ TSSR_FWN_001            sub-system            what one part must do
 code and tests
 ```
 
-The levels are configured in `.reqkit.toml`; `req levels` shows them. The setup offers
+The levels are configured in `.reqdeck.toml`; `reqdeck levels` shows them. The setup offers
 three shapes:
 
 | Shape | Levels | Fits |
@@ -37,7 +37,7 @@ three shapes:
   Node shall drive each channel with 12-bit PWM at 1 kHz."
 
 Each sub-system or interface prefix is one *unit*: one CSV, one `.toml`. A new unit is a
-new part of the design — agree it with the user before `req unit`.
+new part of the design — agree it with the user before `reqdeck unit`.
 
 A level with `traced = false` (typically the system level) is never referenced from code.
 It is traced through what satisfies it, and a test against a lower requirement verifies
@@ -47,7 +47,7 @@ everything above it.
 
 | Field | |
 |---|---|
-| `id` | Allocated by `req add`. Sequential per prefix, append-only, never reused |
+| `id` | Allocated by `reqdeck add`. Sequential per prefix, append-only, never reused |
 | `title` | A few words |
 | `statement` | One sentence with "shall". The obligation, nothing else |
 | `rationale` | Optional, one line — only where the reason is not obvious |
@@ -79,14 +79,14 @@ Multi-line detail — a byte layout, a state table — goes in `<unit>.details.m
 ## Linking
 
 `satisfies` names what the requirement exists to fulfil, one level up — the link `check`
-enforces against the levels in `.reqkit.toml`. Look for the parent before leaving it
+enforces against the levels in `.reqdeck.toml`. Look for the parent before leaving it
 empty; an empty link must not mean the parent was never looked for. A requirement driven
 by a constraint rather than a user need — a risk, a regulation — may genuinely have none,
 and then its rationale says so.
 
 ## Verification methods
 
-Configured per project (`req verification`). The common set:
+Configured per project (`reqdeck verification`). The common set:
 
 | | | |
 |---|---|---|
@@ -108,13 +108,13 @@ Two distinctions decide most cases: **D against M** — the difference is an ins
 
 `Proposed` — written, not yet read by the user. `Accepted` — reviewed and agreed.
 `Reopened` — was accepted, then changed, so it needs reading again. An agent writes
-`Proposed` (the only thing `req add` can write); `req edit` on an accepted requirement
+`Proposed` (the only thing `reqdeck add` can write); `reqdeck edit` on an accepted requirement
 makes it `Reopened`, and the change and its reason go in `source`. Only the user accepts.
 
 ## Security relevance
 
 `security = Yes` marks a requirement carrying a security property, so the set is
-enumerable for a conformance argument (`req list --security`). Judge by whether an attacker
+enumerable for a conformance argument (`reqdeck list --security`). Judge by whether an attacker
 is in the story: a CRC against a marginal cable is not a security control, and marking it
 would misdescribe it.
 

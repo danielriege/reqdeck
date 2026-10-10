@@ -1,15 +1,15 @@
 ---
-name: req-method
-description: The reqkit way of designing a product with its user — product brief, topics, open questions answered one at a time, then requirements derived from the answers, traced to code and tests with @REQ_REF. Use when setting up a new project for requirements, starting or continuing design work, discussing or answering an open question, writing or reviewing requirements, deciding a requirement's level, or adding @REQ_REF markers to code and tests.
+name: reqdeck-method
+description: The reqdeck way of designing a product with its user — product brief, topics, open questions answered one at a time, then requirements derived from the answers, traced to code and tests with @REQ_REF. Use when setting up a new project for requirements, starting or continuing design work, discussing or answering an open question, writing or reviewing requirements, deciding a requirement's level, or adding @REQ_REF markers to code and tests.
 ---
 
-# The reqkit method
+# The reqdeck method
 
 A design is built *with* the user, not for them. The agent researches, drafts, lays out
 options and recommends; **the user decides**. Every requirement traces to a decision the
 user actually made, and the files record which requirements the user has actually read.
 
-The tool is the **req-cli** skill. Two references go with this file — read them when the
+The tool is the **reqdeck-cli** skill. Two references go with this file — read them when the
 work reaches them:
 
 - [references/writing-requirements.md](references/writing-requirements.md) — levels,
@@ -46,18 +46,19 @@ happen whatever is decided, and gets watched — in a risk register, not as a qu
 
 ## Phase 0 — Setting up
 
-1. Add reqkit as a submodule: `git submodule add https://github.com/danielriege/reqkit .reqkit`.
+1. Install reqdeck: `pip install reqdeck`, in the project's venv if it has one.
 2. Before running the setup, agree with the user what the parts of the product are. The
    setup asks for the *shape* of the requirement tree — see
    [writing-requirements.md](references/writing-requirements.md#levels) — and for one unit
    per part (firmware, hardware, app, an interface between two of them). It is fine to
-   start with fewer units; `req unit` adds one later.
-3. Run `.reqkit/init.sh` from the project root. It is interactive: relay each question to
+   start with fewer units; `reqdeck unit` adds one later.
+3. Run `reqdeck init` from the project root. It is interactive: relay each question to
    the user rather than answering it yourself, or have the user run it. It writes
-   `.reqkit.toml`, creates the units and OPEN-QUESTIONS, and links both skills for Claude
-   Code and Codex.
+   `.reqdeck.toml`, creates the units and OPEN-QUESTIONS, and copies both skills into
+   `.claude/skills/` and `.agents/skills/` for Claude Code and Codex. Commit them with the
+   project; after upgrading reqdeck, `reqdeck skills --update` refreshes them.
 4. Record in the project's agent instructions (`AGENTS.md` / `CLAUDE.md`) that the project
-   uses reqkit and this method, and which topics are complete as that changes.
+   uses reqdeck and this method, and which topics are complete as that changes.
 
 ## Phase 1 — Product brief
 
@@ -73,7 +74,7 @@ with, what they buy, what to avoid. User stories are the root of the requirement
 live in the stories unit, one row each:
 
 ```bash
-python3 .reqkit/req.py add A --statement "As a collector, I want to turn the display on from my phone, so that I don't have to reach behind the shelf."
+reqdeck add A --statement "As a collector, I want to turn the display on from my phone, so that I don't have to reach behind the shelf."
 ```
 
 One story prefix per persona (`A-01`, `B-01`). Story IDs are permanent. If you drafted the
@@ -110,8 +111,8 @@ and are never deleted — an answered one stays where it is. `Blocks` says what 
 so the order to answer them in is visible.
 
 ```bash
-python3 .reqkit/req.py topics              # open and answered per topic
-python3 .reqkit/req.py questions --open --topic 04 -l
+reqdeck topics              # open and answered per topic
+reqdeck questions --open --topic 04 -l
 ```
 
 ## Phase 5 — Answering, one question at a time
@@ -135,7 +136,7 @@ One question, or a few tightly related ones, per session. For each:
 
 When a topic's questions are answered, derive its requirements — see
 [writing-requirements.md](references/writing-requirements.md). Each takes its `source`
-from the answers and its `topic` from the topic, and is written with `req add`.
+from the answers and its `topic` from the topic, and is written with `reqdeck add`.
 
 Writing requirements finds gaps: a number nobody chose, a behaviour no answer covers, a
 parent that does not exist yet. **Each gap becomes a new open question**, not a
@@ -144,16 +145,16 @@ requirement with an invented value. Tell the user what you found.
 Then the user reviews. They read the `Proposed` requirements and accept them in the TUI:
 
 ```bash
-python3 .reqkit/req.py list --status proposed --topic 06
-.reqkit/tui.py
+reqdeck list --status proposed --topic 06
+reqdeck tui
 ```
 
 ## Phase 7 — Building it
 
 Work is tracked as tasks that name the requirements they implement — at the level that
 reaches code, never a level marked `traced = false`. Code and tests carry `@REQ_REF`
-markers ([markers.md](references/markers.md)); `req trace` decides whether a change left
-what it claims traced, and `req coverage` is the measure of progress, not task counts.
+markers ([markers.md](references/markers.md)); `reqdeck trace` decides whether a change left
+what it claims traced, and `reqdeck coverage` is the measure of progress, not task counts.
 
 A change in behaviour that no requirement covers is a finding. Raise it as a question
 rather than shipping unspecified behaviour.

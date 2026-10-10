@@ -57,7 +57,7 @@ def add(m: Model, prefix: str, fields: dict[str, str]) -> tuple[str, str, int]:
     unit = m.unit(prefix)
     if unit is None:
         raise OpError(f"No unit holds {prefix}. A new prefix is a new unit of the design — "
-                      f"create it deliberately with `req unit`, then add to it.")
+                      f"create it deliberately with `reqdeck unit`, then add to it.")
     want = prefix.upper().rstrip("_-")
     exact = next((p for p in unit.prefixes if p.upper() == want), unit.prefixes[0])
     lv = m.cfg.level(unit.level)

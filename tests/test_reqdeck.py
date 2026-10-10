@@ -1,4 +1,4 @@
-"""reqkit's own tests. Standard library only: python3 -m unittest discover tests"""
+"""reqdeck's own tests. Standard library only: python3 -m unittest discover tests"""
 
 import contextlib
 import io
@@ -11,9 +11,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from tool import config, ops, store  # noqa: E402
-from tool.cli import main  # noqa: E402
-from tool.model import Model  # noqa: E402
+from reqdeck import config, ops, store  # noqa: E402
+from reqdeck.cli import main  # noqa: E402
+from reqdeck.model import Model  # noqa: E402
 
 CONFIG = """\
 requirements = "reqs"
@@ -64,7 +64,7 @@ class Project:
     def __init__(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name)
-        (self.root / ".reqkit.toml").write_text(CONFIG)
+        (self.root / ".reqdeck.toml").write_text(CONFIG)
         (self.root / "OPEN-QUESTIONS.md").write_text(QUESTIONS)
         rd = self.root / "reqs"
         store.create_unit(rd, "stories", "STORY", ["A"], "Stories", False, store.STORY_COLUMNS)
@@ -225,7 +225,7 @@ class TestExample(unittest.TestCase):
 
 class TestTestPaths(Base):
     def test_test_paths_match_whatever_the_case(self):
-        (self.p.root / ".reqkit.toml").write_text(CONFIG.replace("[markers]", '[markers]\ntest_paths = ["Tests"]'))
+        (self.p.root / ".reqdeck.toml").write_text(CONFIG.replace("[markers]", '[markers]\ntest_paths = ["Tests"]'))
         ops.add(self.p.model(), "SSR_APP", {"statement": "S.", "satisfies": "SR_001", "source": "x",
                                             "verification": "T"})
         self.p.write("Tests/ScreenTests.swift", "// @REQ_REF(SSR_APP_001) shows it\n")
@@ -287,8 +287,8 @@ class TestEditor(unittest.TestCase):
                 os.environ.pop(k, None)
 
     def test_presets_from_the_environment(self):
-        from tool.config import Editor
-        from tool.editor import command
+        from reqdeck.config import Editor
+        from reqdeck.editor import command
         os.environ["EDITOR"] = "nvim"
         self.assertEqual(command(Editor(), "a b.h", 7), (["nvim", "+7", "a b.h"], True))
         os.environ["VISUAL"] = "code"
@@ -297,8 +297,8 @@ class TestEditor(unittest.TestCase):
         self.assertEqual(command(Editor(), "x.h", 3)[0], ["/opt/bin/nvim", "-u", "NONE", "+3", "x.h"])
 
     def test_the_project_command_wins(self):
-        from tool.config import Editor
-        from tool.editor import command
+        from reqdeck.config import Editor
+        from reqdeck.editor import command
         os.environ["EDITOR"] = "nvim"
         self.assertEqual(command(Editor(command="zed {file}:{line}"), "x.c", 9), (["zed", "x.c:9"], False))
         self.assertEqual(command(Editor(command="myed {file}", suspend=True), "x.c", 9), (["myed", "x.c"], True))
@@ -306,9 +306,9 @@ class TestEditor(unittest.TestCase):
     def test_editor_table_is_read_from_the_config(self):
         p = Project()
         try:
-            (p.root / ".reqkit.toml").write_text(CONFIG + '\n[editor]\ncommand = "code --goto {file}:{line}"\n')
+            (p.root / ".reqdeck.toml").write_text(CONFIG + '\n[editor]\ncommand = "code --goto {file}:{line}"\n')
             self.assertEqual(config.load(p.root).editor.command, "code --goto {file}:{line}")
-            (p.root / ".reqkit.toml").write_text(CONFIG + '\n[editor]\ncmd = "x"\n')
+            (p.root / ".reqdeck.toml").write_text(CONFIG + '\n[editor]\ncmd = "x"\n')
             with self.assertRaises(config.ConfigError):
                 config.load(p.root)
         finally:
@@ -317,7 +317,7 @@ class TestEditor(unittest.TestCase):
 
 class TestOrigin(Base):
     def test_what_a_marker_is_attached_to(self):
-        from tool.render import origin
+        from reqdeck.render import origin
         self.p.write("src/pwm.h", "/**\n * @file pwm.h\n * @REQ_REF(SSR_APP_001) x\n */\n#pragma once\n")
         self.p.write("src/A.swift", "/// Keeps them.\n///\n/// @REQ_REF(SSR_APP_001) x\nfinal class A {\n}\n")
         self.p.write("test/t.cpp", "/**\n * @test It works.\n *\n * @REQ_REF(SSR_APP_001) x\n */\n"

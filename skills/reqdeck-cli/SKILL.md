@@ -1,39 +1,40 @@
 ---
-name: req-cli
-description: Query, add, edit and validate requirements and open questions with reqkit's req.py CLI. Use when looking up which requirement covers a behaviour, before implementing or changing a feature, when writing or reviewing a test, adding @REQ_REF markers, writing new requirements, checking traceability, listing open questions, or before claiming work is complete. Applies in any repository with a .reqkit.toml.
+name: reqdeck-cli
+description: Query, add, edit and validate requirements and open questions with the reqdeck CLI. Use when looking up which requirement covers a behaviour, before implementing or changing a feature, when writing or reviewing a test, adding @REQ_REF markers, writing new requirements, checking traceability, listing open questions, or before claiming work is complete. Applies in any repository with a .reqdeck.toml.
 ---
 
-# req — the reqkit CLI
+# reqdeck — the CLI
 
-A project using reqkit has `.reqkit.toml` in its root and reqkit itself as a submodule,
-usually at `.reqkit/`. Run the CLI from anywhere inside the project:
+A project using reqdeck has `.reqdeck.toml` in its root, and reqdeck installed
+(`pip install reqdeck`, usually in the project's venv). Run it from anywhere inside the
+project:
 
 ```bash
-python3 .reqkit/req.py --json get TSR_009
+reqdeck --json get TSR_009
 ```
 
-If the project's venv has reqkit installed, the same commands are `req <cmd>`. Prefer the
-explicit path, which works either way. Every command takes `--json`; prefer it, since it is
-stable and carries the transitive chain the human-readable form draws as a tree.
+If `reqdeck` is not on the path, `python3 -m reqdeck` is the same command. Every command
+takes `--json`; prefer it, since it is stable and carries the transitive chain the
+human-readable form draws as a tree.
 
 The method behind the files — levels, how a requirement is written, the open-question
-workflow, `@REQ_REF` rules — is the **req-method** skill. This one is the tool.
+workflow, `@REQ_REF` rules — is the **reqdeck-method** skill. This one is the tool.
 
 ## The files
 
-Requirements live in the folder `.reqkit.toml` names, one *unit* per prefix:
+Requirements live in the folder `.reqdeck.toml` names, one *unit* per prefix:
 
 | File | Holds | Edit with |
 |---|---|---|
-| `<unit>.csv` | One requirement per row, ordered by ID, append-only | `req add`, `req edit` — never by hand |
+| `<unit>.csv` | One requirement per row, ordered by ID, append-only | `reqdeck add`, `reqdeck edit` — never by hand |
 | `<unit>.toml` | Level, prefix, title, description, `code`, sections | By hand |
 | `<unit>.details.md` | Multi-line detail — tables, layouts — one `## <ID>` each | By hand |
 
 **Never edit a CSV by hand.** Quoting is easy to break, a hand edit can set a status the
 tool would refuse, and `check` rejects any file not in the exact form the tool writes. If a
-CSV has been edited outside the tool, `req fmt` rewrites it canonically.
+CSV has been edited outside the tool, `reqdeck fmt` rewrites it canonically.
 
-Open questions live in markdown (`questions =` in `.reqkit.toml`) and are edited by hand.
+Open questions live in markdown (`questions =` in `.reqdeck.toml`) and are edited by hand.
 
 ## Commands
 
@@ -62,8 +63,8 @@ Open questions live in markdown (`questions =` in `.reqkit.toml`) and are edited
 Find what governs it, and read the statement before writing code:
 
 ```bash
-python3 .reqkit/req.py --json search 'keyframe|interpolat'
-python3 .reqkit/req.py --json get TSSR_FWN_012
+reqdeck --json search 'keyframe|interpolat'
+reqdeck --json get TSSR_FWN_012
 ```
 
 If nothing matches, that is a finding — say so rather than inventing behaviour.
@@ -75,7 +76,7 @@ the unit holding the prefix, validates every link, and writes `Proposed` — it 
 to write anything else.
 
 ```bash
-python3 .reqkit/req.py add TSSR_FWN --title "Channel PWM" \
+reqdeck add TSSR_FWN --title "Channel PWM" \
     --statement "The Node shall drive each channel with 12-bit PWM at 1 kHz." \
     --satisfies TSR_025,TSR_026 --topic 06 --source "OQ-0608." --verification S \
     [--rationale "..."] [--section render.pwm] [--security]
@@ -89,7 +90,7 @@ python3 .reqkit/req.py add TSSR_FWN --title "Channel PWM" \
 - Stories: `add A --statement "As a …"` — no source, verification or status.
 
 It refuses a prefix no unit holds. A new prefix is a new unit of the design — create it
-deliberately with `req unit`, and only when the user has agreed the unit exists.
+deliberately with `reqdeck unit`, and only when the user has agreed the unit exists.
 
 Multi-line detail does not go in the CSV. Append a block to `<unit>.details.md`:
 
@@ -104,12 +105,12 @@ Multi-line detail does not go in the CSV. Append a block to `<unit>.details.md`:
 ## Changing a requirement
 
 ```bash
-python3 .reqkit/req.py edit TSR_009 --statement "..." --source "OQ-0507. Reopened 2026-10-10 by OQ-0512: ..."
+reqdeck edit TSR_009 --statement "..." --source "OQ-0507. Reopened 2026-10-10 by OQ-0512: ..."
 ```
 
 `edit` changes any field but `id` and `status`. **Changing an Accepted requirement turns
 it Reopened automatically** — say what changed and why in `source`. Nothing in the CLI
-sets `Accepted`: only the user does, in the TUI (`.reqkit/tui.py`, key `a`) or by hand.
+sets `Accepted`: only the user does, in the TUI (`reqdeck tui`, key `a`) or by hand.
 Never work around that.
 
 IDs are permanent. Never renumber, never reuse a retired ID, never delete a row that code,
@@ -157,8 +158,8 @@ links or markers.** Report them.
 ## Before claiming work is complete
 
 ```bash
-python3 .reqkit/req.py trace TSSR_FWN_012 ICD_BUS_014   # what the change claims to implement
-python3 .reqkit/req.py check
+reqdeck trace TSSR_FWN_012 ICD_BUS_014   # what the change claims to implement
+reqdeck check
 ```
 
 `trace` refuses a level marked `traced = false` (typically the system level) and names

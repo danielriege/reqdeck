@@ -1,4 +1,4 @@
-"""Project configuration: `.reqkit.toml` in the root of the project using reqkit.
+"""Project configuration: `.reqdeck.toml` in the root of the project using reqdeck.
 
 Everything project-specific lives here — where the files are, which levels of
 requirement exist, which verification methods, and how `@REQ_REF` markers are
@@ -12,7 +12,7 @@ import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
-CONFIG_NAME = ".reqkit.toml"
+CONFIG_NAME = ".reqdeck.toml"
 
 #: Review status. Fixed rather than configurable: it is the one signal that a
 #: human has read a requirement, and only the user ever sets Accepted.
@@ -112,23 +112,16 @@ class Config:
         return {k for lv in self.levels for k in lv.satisfies}
 
 
-def find_root(start: Path | None = None, script: Path | None = None) -> Path | None:
-    """The nearest directory holding `.reqkit.toml`.
-
-    `REQKIT_ROOT` wins. Otherwise searched upward from the current directory,
-    then from the script's own location, which covers running a submodule's
-    `req.py` from outside the project.
-    """
-    env = os.environ.get("REQKIT_ROOT")
+def find_root(start: Path | None = None) -> Path | None:
+    """The nearest directory holding `.reqdeck.toml`: `REQDECK_ROOT` if set,
+    otherwise searched upward from the current directory."""
+    env = os.environ.get("REQDECK_ROOT")
     if env:
         return Path(env).expanduser().resolve()
-    bases = [start or Path.cwd()]
-    if script:
-        bases.append(script.resolve().parent)
-    for base in bases:
-        for d in (base, *base.parents):
-            if (d / CONFIG_NAME).is_file():
-                return d
+    base = (start or Path.cwd()).resolve()
+    for d in (base, *base.parents):
+        if (d / CONFIG_NAME).is_file():
+            return d
     return None
 
 

@@ -1,4 +1,4 @@
-"""Themes: Textual's own, each given reqkit's full colour suite by a file in
+"""Themes: Textual's own, each given reqdeck's full colour suite by a file in
 this folder. See README.md for the roles."""
 
 from __future__ import annotations
@@ -40,7 +40,7 @@ class Palette:
 
 def user_dir() -> Path:
     base = os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config")
-    return Path(base) / "reqkit" / "themes"
+    return Path(base) / "reqdeck" / "themes"
 
 
 def parse(path: Path) -> Palette:

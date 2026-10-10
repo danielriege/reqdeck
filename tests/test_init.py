@@ -1,13 +1,13 @@
-"""init.sh, driven with scripted answers. Standard library only.
+"""`reqdeck init`, driven with scripted answers.
 
-Each test builds a throwaway project with reqkit linked in as `.reqkit`, the
-way a submodule sits, and feeds init.sh one answer per line.
+Each test builds a throwaway project and feeds `python -m reqdeck init` one
+answer per line, as a person at the terminal would.
 """
 
 import hashlib
 import os
-import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -24,23 +24,20 @@ SHAPE_1 = [
     "",                          # no more sub-system units
     "BUS", "icd-bus", "Bus interface", "y",
     "",                          # no more interface units
-    "y", "y",                    # link skills for Claude and Codex
+    "y", "y",                    # copy skills for Claude and Codex
     "y",                         # confirm
 ]
 
 SHAPE_3 = ["3", "", "", "", "", "n", "n", "y", "y", "y", "y"]
 
-#: Every bash this machine has: the script must run under macOS's 3.2 too.
-BASHES = [b for b in ("/bin/bash", shutil.which("bash")) if b and os.path.exists(b)]
-BASHES = list(dict.fromkeys(BASHES))
+ENV = {**{k: v for k, v in os.environ.items() if k != "REQDECK_ROOT"},
+       "PYTHONPATH": str(KIT)}
 
 
 def snapshot(root: Path) -> dict[str, str]:
     out = {}
     for p in sorted(root.rglob("*")):
         rel = str(p.relative_to(root))
-        if rel == ".reqkit" or rel.startswith(".reqkit/"):
-            continue
         if p.is_symlink():
             out[rel] = "-> " + os.readlink(p)
         elif p.is_file():
@@ -51,27 +48,22 @@ def snapshot(root: Path) -> dict[str, str]:
 
 
 class InitTest(unittest.TestCase):
-    bash = BASHES[0]
-
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name) / "my project"   # a space, on purpose
         self.root.mkdir()
-        (self.root / ".reqkit").symlink_to(KIT)
 
     def tearDown(self):
         self.tmp.cleanup()
 
-    def init(self, answers: list[str], cwd: Path | None = None) -> subprocess.CompletedProcess:
-        env = {k: v for k, v in os.environ.items() if k != "REQKIT_ROOT"}
-        return subprocess.run([self.bash, str((cwd or self.root) / ".reqkit" / "init.sh")
-                               if cwd is None else str(KIT / "init.sh")],
-                              input="\n".join(answers) + "\n", cwd=cwd or self.root,
-                              capture_output=True, text=True, env=env, timeout=60)
+    def init(self, answers: list[str]) -> subprocess.CompletedProcess:
+        return subprocess.run([sys.executable, "-m", "reqdeck", "init"],
+                              input="\n".join(answers) + "\n", cwd=self.root,
+                              capture_output=True, text=True, env=ENV, timeout=60)
 
     def req(self, *args: str) -> subprocess.CompletedProcess:
-        return subprocess.run(["python3", str(KIT / "req.py"), *args], cwd=self.root,
-                              capture_output=True, text=True)
+        return subprocess.run([sys.executable, "-m", "reqdeck", *args], cwd=self.root,
+                              capture_output=True, text=True, env=ENV)
 
     def assertNothingWritten(self, before: dict | None = None):
         self.assertEqual(snapshot(self.root), before or {})
@@ -88,10 +80,11 @@ class InitTest(unittest.TestCase):
         self.assertIn('prefixes = ["A", "B"]', (rd / "stories.toml").read_text())
         self.assertIn("code = true", (rd / "firmware-node.toml").read_text())
         self.assertNotIn("code = true", (rd / "hardware-node.toml").read_text())
-        self.assertIn("[verification.S]", (self.root / ".reqkit.toml").read_text())
+        self.assertIn("[verification.S]", (self.root / ".reqdeck.toml").read_text())
         self.assertTrue((self.root / "docs/OPEN-QUESTIONS.md").exists())
         for d in (".claude/skills", ".agents/skills"):
-            self.assertEqual(os.readlink(self.root / d / "req-cli"), "../../.reqkit/skills/req-cli")
+            skill = self.root / d / "reqdeck-cli"
+            self.assertTrue((skill / "SKILL.md").is_file() and not skill.is_symlink())   # a copy
         self.assertEqual(self.req("check").returncode, 0)
         self.assertIn("TSSR_FWN", self.req("levels").stdout)
 
@@ -99,7 +92,7 @@ class InitTest(unittest.TestCase):
         r = self.init(SHAPE_3)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertTrue((self.root / "docs/requirements/requirements.csv").exists())
-        self.assertIn("[verification.T]", (self.root / ".reqkit.toml").read_text())
+        self.assertIn("[verification.T]", (self.root / ".reqdeck.toml").read_text())
         self.assertEqual(self.req("add", "REQ", "--statement", "The app shall start.", "--topic", "01",
                                   "--source", "OQ-0101.", "--verification", "T").returncode, 0)
         self.assertEqual(self.req("check").returncode, 0)
@@ -112,7 +105,7 @@ class InitTest(unittest.TestCase):
         r = self.init(SHAPE_1)
         self.assertNotEqual(r.returncode, 0)
         self.assertIn("already exists", r.stderr)
-        self.assertIn("req.py unit", r.stderr)
+        self.assertIn("reqdeck unit", r.stderr)
         self.assertNothingWritten(before)
 
     def test_existing_requirement_file_stops_before_writing(self):
@@ -144,14 +137,14 @@ class InitTest(unittest.TestCase):
         self.assertEqual(q.read_text(), "# Questions\n\n- what about power?\n")
 
     def test_existing_skill_folder_is_left_alone(self):
-        mine = self.root / ".claude/skills/req-cli"
+        mine = self.root / ".claude/skills/reqdeck-cli"
         mine.mkdir(parents=True)
         (mine / "SKILL.md").write_text("mine")
         r = self.init(SHAPE_1)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual((mine / "SKILL.md").read_text(), "mine")
-        self.assertTrue((self.root / ".claude/skills/req-method").is_symlink())
-        self.assertIn("kept the existing .claude/skills/req-cli", r.stdout)
+        self.assertTrue((self.root / ".claude/skills/reqdeck-method/SKILL.md").is_file())
+        self.assertIn("kept the existing .claude/skills/reqdeck-cli", r.stdout)
 
     # ------------------------------------------------------------ bad input
 
@@ -185,11 +178,21 @@ class InitTest(unittest.TestCase):
         self.assertNotEqual(r.returncode, 0)
         self.assertNothingWritten()
 
-    def test_refuses_to_run_inside_reqkit(self):
-        r = subprocess.run([self.bash, str(KIT / "init.sh")], cwd=KIT, input="", capture_output=True,
-                           text=True)
-        self.assertNotEqual(r.returncode, 0)
-        self.assertIn("not from inside reqkit", r.stderr)
+    def test_skills_update_replaces_only_reqdecks_own_copies(self):
+        self.assertEqual(self.init(SHAPE_1).returncode, 0)
+        ours = self.root / ".claude/skills/reqdeck-cli/SKILL.md"
+        ours.write_text(ours.read_text() + "\nstale\n")
+        theirs = self.root / ".agents/skills/reqdeck-method"
+        for f in theirs.rglob("*"):
+            if f.is_file():
+                f.unlink()
+        (theirs / "SKILL.md").write_text("name: something-else\n")
+        r = self.req("skills")
+        self.assertIn("kept", r.stdout)
+        self.assertIn("stale", ours.read_text())                   # without --update, nothing replaced
+        self.req("skills", "--update")
+        self.assertNotIn("stale", ours.read_text())                # reqdeck's own copy, refreshed
+        self.assertEqual((theirs / "SKILL.md").read_text(), "name: something-else\n")   # not ours
 
     # ------------------------------------------------------------ failure while writing
 
@@ -207,15 +210,6 @@ class InitTest(unittest.TestCase):
         self.assertIn("removing what this run created", r.stderr)
         self.assertNothingWritten(before)
 
-
-def _for_each_bash():
-    """Run the whole suite again under every other bash found."""
-    for b in BASHES[1:]:
-        name = "InitTest_" + b.strip("/").replace("/", "_").replace(".", "_")
-        globals()[name] = type(name, (InitTest,), {"bash": b})
-
-
-_for_each_bash()
 
 if __name__ == "__main__":
     unittest.main()

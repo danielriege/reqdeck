@@ -1,0 +1,12 @@
+{
+  "name": "reqdeck",
+  "description": "reqdeck — requirements, open questions and traceability in your git repo",
+  "owner": { "name": "Daniel Riege" },
+  "plugins": [
+    {
+      "name": "reqdeck",
+      "source": "./",
+      "description": "Skills for the reqdeck CLI and its method: open questions, requirements from the answers, @REQ_REF tracing to code and tests. Needs `pip install reqdeck`."
+    }
+  ]
+}

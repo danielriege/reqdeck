@@ -138,6 +138,7 @@ works entirely from the keyboard, with vim keys, and with the mouse.
 | | |
 |---|---|
 | `j` `k` `h` `l`, `gg` `G`, `ctrl+d` `ctrl+u` | Move, as in vim |
+| `enter` | In the tree: into the reading pane |
 | `tab` `shift+tab` | In the reading pane: the next, previous link, highlighted and previewed |
 | `enter` `gd` | Follow the link; the tree moves there too. A code or test reference opens in the editor |
 | `ctrl+o` `[` · `]` | Back, forward through the jumps |

@@ -65,6 +65,10 @@ class TuiTest(unittest.TestCase):
             self.assertEqual(self.cursor(app), ("req", "A-01"))
             await pilot.press("h")                     # back to the unit
             self.assertEqual(self.cursor(app), ("unit", "stories"))
+            await pilot.press("enter")                 # into the reading pane, on the story
+            self.assertEqual(app.focused.id, "view")
+            await pilot.press("h")                     # and back
+            self.assertEqual(app.focused.id, "nav")
             tree = app.query_one("#nav")
             await pilot.press("G")
             self.assertEqual(tree.cursor_line, tree.last_line)

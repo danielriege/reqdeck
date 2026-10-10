@@ -56,6 +56,7 @@ HELP = """\
 | `o` | Only open questions |
 | `a` | Accept the highlighted requirement |
 | `<` `>` | Narrow or widen the sidebar — or drag the divider |
+| `enter` | In the tree: into the reading pane, which shows what is highlighted |
 | `1` `2` | Focus the tree, the reading pane |
 | `t` | Theme — previewed as you move, `enter` keeps it |
 | `r` | Reload from disk |
@@ -116,6 +117,7 @@ class VimTree(Tree):
         Binding("k", "cursor_up", show=False),
         Binding("h", "vim_left", show=False),
         Binding("l", "vim_right", show=False),
+        Binding("enter", "read", show=False),
         Binding("G", "last", show=False),
         Binding("g", "g", show=False),
         Binding("ctrl+d", "half(1)", show=False),
@@ -145,6 +147,10 @@ class VimTree(Tree):
             self.action_cursor_down()      # an expanded node's first child is the next line
         else:
             self.app.query_one("#view").focus()
+
+    def action_read(self) -> None:
+        """Into the reading pane, which already shows what is highlighted."""
+        self.app.query_one("#view").focus()
 
     def action_last(self) -> None:
         self.cursor_line = self.last_line
@@ -653,7 +659,7 @@ class ReqkitApp(App):
         in_view = self.focused is not None and self.focused.id == "view"
         pairs = ([("Next link", "tab"), ("Follow", "enter"), ("Back", "ctrl+o"), ("Tree", "1")]
                  if in_view else
-                 [("Search", "/"), ("Expand", "l"), ("Collapse", "h"), ("Reading pane", "2"),
+                 [("Search", "/"), ("Read", "enter"), ("Expand", "l"), ("Collapse", "h"),
                   ("Back", "ctrl+o"), ("Only open questions", "o")])
         pairs += [("Accept", "a"), ("Theme", "t"), ("Keys", "?"), ("Quit", "q")]
         parts: list = []

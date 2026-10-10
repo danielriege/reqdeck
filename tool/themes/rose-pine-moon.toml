@@ -1,0 +1,27 @@
+# Rosé Pine Moon — https://rosepinetheme.com/palette/ingredients
+
+name = "rose-pine-moon"
+title = "Rosé Pine Moon"
+
+[colors]
+foreground    = "#e0def4"   # text
+muted         = "#908caa"   # subtle
+border        = "#56526e"   # highlight-high
+border_active = "#c4a7e7"   # iris
+border_search = "#f6c177"   # gold
+selection     = "#44415a"   # highlight-med
+title         = "#c4a7e7"   # iris
+heading       = "#ea9a97"   # rose
+id            = "#9ccfd8"   # foam
+link          = "#9ccfd8"   # foam
+link_active   = "#f6c177"   # gold
+code          = "#f6c177"   # gold
+table_header  = "#c4a7e7"   # iris
+statement_bar = "#eb6f92"   # love
+accepted      = "#9ccfd8"   # foam
+proposed      = "#f6c177"   # gold
+reopened      = "#eb6f92"   # love
+security      = "#c4a7e7"   # iris
+open          = "#eb6f92"   # love
+answered      = "#3e8fb0"   # pine
+keys          = "#c4a7e7"   # iris

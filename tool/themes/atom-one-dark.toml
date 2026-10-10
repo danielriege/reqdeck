@@ -1,0 +1,27 @@
+# One Dark — https://github.com/atom/one-dark-syntax
+
+name = "atom-one-dark"
+title = "One Dark"
+
+[colors]
+foreground    = "#abb2bf"   # mono-1
+muted         = "#7f848e"   # mono-2
+border        = "#4b5263"   # gutter
+border_active = "#61afef"   # blue
+border_search = "#56b6c2"   # cyan
+selection     = "#3e4451"   # selection
+title         = "#61afef"   # blue
+heading       = "#c678dd"   # purple
+id            = "#56b6c2"   # cyan
+link          = "#61afef"   # blue
+link_active   = "#d19a66"   # orange
+code          = "#98c379"   # green
+table_header  = "#e5c07b"   # yellow
+statement_bar = "#c678dd"   # purple
+accepted      = "#98c379"   # green
+proposed      = "#d19a66"   # orange
+reopened      = "#e06c75"   # red
+security      = "#c678dd"   # purple
+open          = "#e06c75"   # red
+answered      = "#98c379"   # green
+keys          = "#c678dd"   # purple

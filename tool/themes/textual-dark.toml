@@ -1,0 +1,27 @@
+# Textual Dark — https://textual.textualize.io/guide/design/
+
+name = "textual-dark"
+title = "Textual Dark"
+
+[colors]
+foreground    = "#e0e0e0"   # foreground
+muted         = "#8a8a8a"   # muted
+border        = "#4a4a4a"   # border
+border_active = "#0178d4"   # primary
+border_search = "#ffa62b"   # accent
+selection     = "#1f3a52"   # selection
+title         = "#4aa8ff"   # primary-light
+heading       = "#4aa8ff"   # primary-light
+id            = "#4aa8ff"   # primary-light
+link          = "#4aa8ff"   # primary-light
+link_active   = "#ffa62b"   # accent
+code          = "#ffa62b"   # accent
+table_header  = "#7f9fbf"   # secondary
+statement_bar = "#ffa62b"   # accent
+accepted      = "#4ebf71"   # success
+proposed      = "#ffa62b"   # accent
+reopened      = "#ba3c5b"   # error
+security      = "#ffa62b"   # accent
+open          = "#ba3c5b"   # error
+answered      = "#4ebf71"   # success
+keys          = "#ffa62b"   # accent

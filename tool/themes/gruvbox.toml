@@ -1,0 +1,27 @@
+# Gruvbox — https://github.com/morhetz/gruvbox#palette
+
+name = "gruvbox"
+title = "Gruvbox"
+
+[colors]
+foreground    = "#ebdbb2"   # fg1
+muted         = "#928374"   # gray
+border        = "#665c54"   # bg3
+border_active = "#fe8019"   # orange
+border_search = "#8ec07c"   # aqua
+selection     = "#504945"   # bg2
+title         = "#fe8019"   # orange
+heading       = "#fabd2f"   # yellow
+id            = "#83a598"   # blue
+link          = "#8ec07c"   # aqua
+link_active   = "#fe8019"   # orange
+code          = "#b8bb26"   # green
+table_header  = "#d3869b"   # purple
+statement_bar = "#fe8019"   # orange
+accepted      = "#b8bb26"   # green
+proposed      = "#fabd2f"   # yellow
+reopened      = "#fb4934"   # red
+security      = "#d3869b"   # purple
+open          = "#fb4934"   # red
+answered      = "#b8bb26"   # green
+keys          = "#fe8019"   # orange

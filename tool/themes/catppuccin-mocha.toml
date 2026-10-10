@@ -1,0 +1,27 @@
+# Catppuccin Mocha — https://catppuccin.com/palette
+
+name = "catppuccin-mocha"
+title = "Catppuccin Mocha"
+
+[colors]
+foreground    = "#cdd6f4"   # text
+muted         = "#7f849c"   # overlay1
+border        = "#585b70"   # surface2
+border_active = "#cba6f7"   # mauve
+border_search = "#f9e2af"   # yellow
+selection     = "#313244"   # surface0
+title         = "#cba6f7"   # mauve
+heading       = "#89b4fa"   # blue
+id            = "#74c7ec"   # sapphire
+link          = "#89dceb"   # sky
+link_active   = "#fab387"   # peach
+code          = "#fab387"   # peach
+table_header  = "#b4befe"   # lavender
+statement_bar = "#cba6f7"   # mauve
+accepted      = "#a6e3a1"   # green
+proposed      = "#f9e2af"   # yellow
+reopened      = "#f38ba8"   # red
+security      = "#f5c2e7"   # pink
+open          = "#eba0ac"   # maroon
+answered      = "#a6e3a1"   # green
+keys          = "#cba6f7"   # mauve

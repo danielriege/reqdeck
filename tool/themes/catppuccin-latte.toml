@@ -1,0 +1,27 @@
+# Catppuccin Latte — https://catppuccin.com/palette
+
+name = "catppuccin-latte"
+title = "Catppuccin Latte"
+
+[colors]
+foreground    = "#4c4f69"   # text
+muted         = "#8c8fa1"   # overlay1
+border        = "#acb0be"   # surface2
+border_active = "#8839ef"   # mauve
+border_search = "#df8e1d"   # yellow
+selection     = "#ccd0da"   # surface0
+title         = "#8839ef"   # mauve
+heading       = "#1e66f5"   # blue
+id            = "#209fb5"   # sapphire
+link          = "#04a5e5"   # sky
+link_active   = "#fe640b"   # peach
+code          = "#fe640b"   # peach
+table_header  = "#7287fd"   # lavender
+statement_bar = "#8839ef"   # mauve
+accepted      = "#40a02b"   # green
+proposed      = "#df8e1d"   # yellow
+reopened      = "#d20f39"   # red
+security      = "#ea76cb"   # pink
+open          = "#e64553"   # maroon
+answered      = "#40a02b"   # green
+keys          = "#8839ef"   # mauve

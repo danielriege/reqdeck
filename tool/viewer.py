@@ -22,7 +22,8 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.content import Content
 from textual.screen import ModalScreen
 from textual.widget import Widget
-from textual.widgets import Button, Footer, Header, Input, Label, Markdown, Static, Tree
+from textual.widgets import Input, Label, Markdown, OptionList, Static, Tree
+from textual.widgets.option_list import Option
 from textual.widgets.tree import TreeNode
 
 from . import ops, render, themes
@@ -32,7 +33,8 @@ from .model import Model, Req
 ID_RE = re.compile(r"\b(?:OQ-\d{4}|[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*[_-]\d+)\b")
 TARGET_RE = re.compile(r"(?:goto|link)\('(?:reqkit:)?([^']+)'\)")
 
-STATUS_MARK = {"Accepted": ("A", "success"), "Proposed": ("P", "warning"), "Reopened": ("R", "error")}
+#: Status letter in the tree, and the theme role that colours it.
+STATUS_MARK = {"Accepted": ("A", "accepted"), "Proposed": ("P", "proposed"), "Reopened": ("R", "reopened")}
 
 HELP = """\
 # Keys
@@ -53,7 +55,8 @@ HELP = """\
 | `o` | Only open questions |
 | `a` | Accept the highlighted requirement |
 | `<` `>` | Narrow or widen the sidebar — or drag the divider |
-| `t` | Theme |
+| `1` `2` | Focus the tree, the reading pane |
+| `t` | Theme — previewed as you move, `enter` keeps it |
 | `r` | Reload from disk |
 | `q` | Quit |
 
@@ -199,12 +202,12 @@ class Divider(Widget):
     """The bar between sidebar and reading pane. Drag it to resize."""
 
     DEFAULT_CSS = """
-    Divider { width: 1; height: 1fr; background: $panel; }
-    Divider:hover, Divider.-dragging { background: $accent; }
+    Divider { width: 1; height: 1fr; color: $rk-border-active; text-opacity: 0%; }
+    Divider:hover, Divider.-dragging { text-opacity: 100%; }
     """
 
     def render(self) -> str:
-        return ""
+        return "\n".join("┃" * 1 for _ in range(max(1, self.size.height)))
 
     def on_mouse_down(self, event: events.MouseDown) -> None:
         self.capture_mouse()
@@ -224,39 +227,86 @@ class Divider(Widget):
 
 class Confirm(ModalScreen[bool]):
     DEFAULT_CSS = """
-    Confirm { align: center middle; }
-    Confirm > Vertical { width: 72; height: auto; padding: 1 2; border: thick $accent; background: $surface; }
-    Confirm Horizontal { height: auto; margin-top: 1; }
-    Confirm Button { margin-right: 2; }
+    Confirm { align: center middle; background: transparent; }
+    Confirm > Vertical { width: 72; height: auto; padding: 1 2; border: round $rk-border-active;
+                         border-title-color: $rk-title; background: transparent; }
+    Confirm Label { color: $rk-foreground; }
+    Confirm .hint { margin-top: 1; color: $rk-muted; }
     """
-    BINDINGS = [Binding("escape,n", "dismiss(False)", "Cancel"), Binding("y", "dismiss(True)", "Yes")]
+    BINDINGS = [Binding("escape,n", "dismiss(False)", "Cancel"), Binding("y,enter", "dismiss(True)", "Yes")]
 
     def __init__(self, message: str):
         super().__init__()
         self.message = message
 
     def compose(self) -> ComposeResult:
-        with Vertical():
+        with Vertical() as box:
+            box.border_title = "Accept"
             yield Label(self.message)
-            with Horizontal():
-                yield Button("Accept  y", variant="success", id="yes")
-                yield Button("Cancel  n", id="no")
+            yield Static(Content.assemble(("Accept: ", "$rk-muted"), ("y", "bold $rk-keys"),
+                                          ("  |  Cancel: ", "$rk-muted"), ("n", "bold $rk-keys")),
+                         classes="hint")
 
-    @on(Button.Pressed)
-    def _pressed(self, event: Button.Pressed) -> None:
-        self.dismiss(event.button.id == "yes")
+
+class ThemePicker(ModalScreen[str | None]):
+    """Every theme with a colour suite, applied live as the cursor moves."""
+
+    DEFAULT_CSS = """
+    ThemePicker { align: center middle; background: transparent; }
+    ThemePicker OptionList { width: 44; height: auto; max-height: 80%; padding: 0 1;
+                             border: round $rk-border-active; border-title-color: $rk-title;
+                             background: transparent; color: $rk-foreground; }
+    ThemePicker OptionList > .option-list--option-highlighted {
+        background: $rk-selection; color: $rk-foreground; text-style: bold; }
+    """
+    BINDINGS = [Binding("escape,q", "cancel", show=False), Binding("j", "down", show=False),
+                Binding("k", "up", show=False)]
+
+    def __init__(self, palettes: dict, current: str):
+        super().__init__()
+        self.palettes = palettes
+        self.original = current
+
+    def compose(self) -> ComposeResult:
+        names = sorted(self.palettes, key=lambda n: self.palettes[n].title.lower())
+        opts = OptionList(*[Option(self.palettes[n].title, id=n) for n in names])
+        opts.border_title = "Theme"
+        yield opts
+
+    def on_mount(self) -> None:
+        opts = self.query_one(OptionList)
+        opts.highlighted = opts.get_option_index(self.original) if self.original in self.palettes else 0
+        opts.focus()
+
+    @on(OptionList.OptionHighlighted)
+    def _preview(self, event: OptionList.OptionHighlighted) -> None:
+        self.app.theme = event.option.id
+
+    @on(OptionList.OptionSelected)
+    def _chosen(self, event: OptionList.OptionSelected) -> None:
+        self.dismiss(event.option.id)
+
+    def action_down(self) -> None:
+        self.query_one(OptionList).action_cursor_down()
+
+    def action_up(self) -> None:
+        self.query_one(OptionList).action_cursor_up()
+
+    def action_cancel(self) -> None:
+        self.app.theme = self.original
+        self.dismiss(None)
 
 
 # --------------------------------------------------------------------- cards
 
 def _status_chip(status: str) -> Content:
-    _, colour = STATUS_MARK.get(status, ("?", "secondary"))
-    return Content.assemble((f" {status} ", f"bold $background on ${colour}"))
+    _, role = STATUS_MARK.get(status, ("?", "muted"))
+    return Content.assemble((f"● {status}", f"bold $rk-{role}"))
 
 
 def _link(rid: str, sel: str = "") -> tuple[str, str]:
     """A clickable ID; the one under the keyboard link cursor is drawn reversed."""
-    style = "bold reverse $accent" if rid == sel else "bold $primary underline"
+    style = "bold $rk-link-active on $rk-selection" if rid == sel else "$rk-link underline"
     return rid, f"{style} @click=app.goto('{rid}')"
 
 
@@ -281,7 +331,7 @@ def _inline(text: str, style: str) -> list[tuple[str, str]]:
         elif italic is not None:
             out.append((italic, f"{style} italic".strip()))
         else:
-            out.append((code, f"{style} $accent".strip()))
+            out.append((code, f"{style} $rk-code".strip()))
         pos = mm.end()
     if pos < len(text):
         out.append((text[pos:], style))
@@ -328,13 +378,13 @@ def md(text: str, classes: str) -> Markdown:
 def requirement_card(m: Model, r: Req, full: bool, sel: str = "") -> Vertical:
     """One requirement, formatted. `full` adds the chain and references."""
     parts: list[Widget] = []
-    head = [_link(r.id) if not full else (r.id, "bold $primary")]
+    head = [(r.id, f"bold $rk-id @click=app.goto('{r.id}')") if not full else (r.id, "bold $rk-id")]
     if r.title:
-        head += ["  ", (r.title, "bold")]
+        head += ["  ", (r.title, "bold $rk-foreground")]
     if m.reviewed(r) and r.status:
         head += ["  ", _status_chip(r.status)]
     if r.security:
-        head += ["  ", (" security ", "bold $background on $accent")]
+        head += ["  ", ("◆ security", "bold $rk-security")]
     parts.append(Static(Content.assemble(*head), classes="card-head"))
     parts.append(md(linked_md(m, r.statement, sel), "statement"))
     if r.detail:
@@ -342,7 +392,7 @@ def requirement_card(m: Model, r: Req, full: bool, sel: str = "") -> Vertical:
 
     rows: list[Widget] = []
     if r.rationale:
-        rows.append(_field("Rationale", *linked(m, r.rationale, "$text-muted italic", sel)))
+        rows.append(_field("Rationale", *linked(m, r.rationale, "$rk-muted italic", sel)))
     if r.satisfies and not full:
         links: list = []
         for i, t in enumerate(r.satisfies):
@@ -354,7 +404,7 @@ def requirement_card(m: Model, r: Req, full: bool, sel: str = "") -> Vertical:
         rows.append(_field("Source", *linked(m, r.source, sel=sel)))
     if r.verification:
         v = m.cfg.verification.get(r.verification)
-        rows.append(_field("Verification", (r.verification, "bold $secondary"),
+        rows.append(_field("Verification", (r.verification, "bold $rk-heading"),
                            f" — {v.name}" if v else ""))
     if r.section and full:
         u = m.unit(r.unit)
@@ -368,26 +418,26 @@ def requirement_card(m: Model, r: Req, full: bool, sel: str = "") -> Vertical:
 
     if full:
         def chain(title: str, ids: list[str], empty: str) -> Static:
-            lines = [Content.assemble((title, "bold $accent"))]
+            lines = [Content.assemble((title, "bold $rk-heading"))]
             for t in ids:
                 label = m.reqs[t].label if t in m.reqs else "(undefined)"
-                lines.append(Content.assemble("  ", _link(t, sel), "  ", (label, "$text-muted")))
+                lines.append(Content.assemble("  ", _link(t, sel), "  ", (label, "$rk-foreground")))
             if not ids:
-                lines.append(Content.assemble(("  " + empty, "$text-muted italic")))
+                lines.append(Content.assemble(("  " + empty, "$rk-muted italic")))
             return Static(Content("\n").join(lines), classes="chain")
 
         parts.append(chain("Satisfies ↑", r.satisfies, "nothing — top level or orphan"))
         parts.append(chain("Satisfied by ↓", m.satisfied_by.get(r.id, []), "nothing yet"))
         refs = m.refs_for(r.id)
-        lines = [Content.assemble(("References", "bold $accent"))]
+        lines = [Content.assemble(("References", "bold $rk-heading"))]
         for x in refs:
-            kind = ("test", "bold $success") if x.is_test else ("code", "bold $secondary")
-            lines.append(Content.assemble("  ", kind, "  ", (f"{x.file}:{x.line}", "$primary"),
-                                          "  ", (x.note, "$text-muted")))
+            kind = ("test", "bold $rk-accepted") if x.is_test else ("code", "bold $rk-id")
+            lines.append(Content.assemble("  ", kind, "  ", (f"{x.file}:{x.line}", "$rk-link"),
+                                          "  ", (x.note, "$rk-muted")))
         if not refs:
-            lines.append(Content.assemble(("  none", "$text-muted italic")))
+            lines.append(Content.assemble(("  none", "$rk-muted italic")))
         parts.append(Static(Content("\n").join(lines), classes="chain"))
-        parts.append(Static(Content.assemble((f"{r.file}:{r.line}", "$text-muted")), classes="where"))
+        parts.append(Static(Content.assemble((f"{r.file}:{r.line}", "$rk-muted")), classes="where"))
     return Vertical(*parts, classes="card full" if full else "card", id=f"card-{r.id}")
 
 
@@ -400,40 +450,79 @@ def heading(text: str, level: int = 1) -> Static:
 class ReqkitApp(App):
     TITLE = "reqkit"
     CSS = """
-    #left { width: 60; }
-    #nav { height: 1fr; background: $surface; }
-    #search { margin: 0 0 1 0; }
-    #view { padding: 0 2; background: $background; }
-    #view:focus { background-tint: $foreground 3%; }
+    Screen { background: transparent; layers: default overlay; }
+    * { scrollbar-background: transparent; scrollbar-background-hover: transparent;
+        scrollbar-background-active: transparent; scrollbar-color: $rk-selection;
+        scrollbar-color-hover: $rk-muted; scrollbar-color-active: $rk-border-active;
+        scrollbar-corner-color: transparent; scrollbar-size-vertical: 1; }
+    #main { height: 1fr; background: transparent; }
 
-    .heading { margin: 1 0 1 0; padding: 0 1; color: $foreground; }
-    .heading.h1 { background: $primary 20%; border-left: wide $primary; }
-    .heading.h2 { border-bottom: solid $accent; color: $accent; }
-    .heading.h3 { color: $accent; }
+    .panel { border: round $rk-border; border-title-color: $rk-title; border-title-style: bold;
+             border-subtitle-color: $rk-muted; background: transparent; }
+    .panel:focus-within, .panel:focus { border: round $rk-border-active; }
+    #left { width: 60; padding: 0; }
+    #left.-searching { border: round $rk-border-search; }
+    #view { width: 1fr; padding: 0 1; }
 
-    .card { height: auto; margin: 0 0 1 0; padding: 1 2; background: $surface;
-            border-left: wide $primary 60%; }
-    .card.full { margin-top: 1; }
-    .card.-selected { border-left: wide $accent; background: $accent 12%; }
+    #search { height: 1; border: none; padding: 0 1; margin: 0 0 1 0; background: transparent;
+              color: $rk-foreground; }
+    #search:focus { background-tint: transparent; }
+    #search > .input--placeholder { color: $rk-muted; }
+    #search > .input--cursor { background: $rk-foreground; color: $rk-selection; }
+
+    Tree { background: transparent; color: $rk-foreground; overflow-x: hidden; }
+    Tree:focus { background-tint: transparent; }
+    Tree > .tree--guides, Tree > .tree--guides-hover { color: $rk-border; }
+    Tree > .tree--guides-selected { color: $rk-border-active; }
+    Tree > .tree--cursor { background: transparent; text-style: bold; }
+    Tree:focus > .tree--cursor { background: $rk-selection; color: $rk-foreground; text-style: none; }
+    Tree:focus > .tree--guides { color: $rk-border; }
+    Tree:focus > .tree--guides-selected { color: $rk-border-active; }
+    Tree > .tree--highlight-line { background: transparent; }
+
+    .heading { margin: 1 0; color: $rk-heading; }
+    .heading.h1 { color: $rk-title; border-bottom: solid $rk-border; }
+    .heading.h3 { margin: 0 0 1 0; }
+
+    .card { height: auto; margin: 0 0 1 0; padding: 0 1; background: transparent;
+            border: round $rk-border; }
+    .card.full { border: none; padding: 0; margin-top: 1; }
+    .card.-selected { border: round $rk-link-active; }
     .card-head { height: auto; }
-    .card Markdown { margin: 0; padding: 0; background: transparent; }
-    .card .statement { margin: 1 0 0 0; padding: 0 1; border-left: outer $accent;
+    .card .statement { margin: 1 0 0 0; padding: 0 1; border-left: outer $rk-statement-bar;
                        text-style: bold; }
+    .card .statement MarkdownParagraph { margin: 0; }
     .card .detail { margin: 1 0 0 0; }
     .card .fields { margin: 1 0 0 0; height: auto; }
     .frow { height: auto; }
-    .flabel { width: 14; text-style: bold; color: $text-muted; }
-    .fvalue { width: 1fr; }
-    .card .statement MarkdownParagraph { margin: 0; }
+    .flabel { width: 14; color: $rk-muted; }
+    .fvalue { width: 1fr; color: $rk-foreground; }
     .card .chain { margin: 1 0 0 0; height: auto; }
     .card .where { margin: 1 0 0 0; }
-    .prose { margin: 0 0 1 0; padding: 0; background: transparent; }
+    .prose { margin: 0 0 1 0; }
     .page { height: auto; }
 
-    Screen { layers: default overlay; }
+    Markdown { margin: 0; padding: 0; background: transparent; color: $rk-foreground;
+               link-color: $rk-link; link-background: transparent; link-style: underline;
+               link-color-hover: $rk-link-active; link-background-hover: transparent;
+               link-style-hover: bold underline; }
+    Markdown MarkdownBlock > .code_inline { background: transparent !important; color: $rk-code !important; }
+    Markdown MarkdownBlock > .strong { color: $rk-foreground; }
+    MarkdownTable { background: transparent !important; }
+    MarkdownTableContent > .header { color: $rk-table-header; text-style: bold; }
+    MarkdownTableContent > .markdown-table--lines { color: $rk-border; }
+    MarkdownBullet { color: $rk-muted; }
+    MarkdownFence { background: transparent !important; color: $rk-code; }
+    MarkdownBlockQuote { background: transparent; border-left: outer $rk-border; }
+    MarkdownH1, MarkdownH2, MarkdownH3 { color: $rk-heading; background: transparent; }
+
     #peek { layer: overlay; position: absolute; display: none; width: 66; height: auto;
-            max-height: 18; padding: 0 1; background: $panel; border: round $accent;
-            border-title-color: $accent; }
+            max-height: 18; padding: 0 1; background: transparent; color: $rk-foreground;
+            border: round $rk-link-active; border-title-color: $rk-link-active; }
+    #keys { dock: bottom; height: 1; padding: 0 1; background: transparent; }
+
+    Toast { background: transparent; border: round $rk-border-active; color: $rk-foreground; }
+    .toast--title { color: $rk-title; }
     """
     BINDINGS = [
         Binding("slash", "search", "Search"),
@@ -441,6 +530,8 @@ class ReqkitApp(App):
         Binding("a", "accept", "Accept"),
         Binding("o", "toggle_open", "Open questions"),
         Binding("t", "change_theme", "Theme"),
+        Binding("1", "focus_panel('nav')", show=False),
+        Binding("2", "focus_panel('view')", show=False),
         Binding("question_mark", "help", "Keys"),
         Binding("r", "reload", "Reload", show=False),
         Binding("n", "next_match(1)", show=False),
@@ -453,7 +544,9 @@ class ReqkitApp(App):
     ]
 
     def __init__(self, script: Path | None = None):
-        super().__init__()
+        # ansi_color leaves the terminal's own background unpainted: with it
+        # off Textual fills every cell.
+        super().__init__(ansi_color=True)
         self.script = script
         self.m: Model = load_model(script)
         self.query_text = ""
@@ -466,21 +559,30 @@ class ReqkitApp(App):
         self.back: list[tuple] = []
         self.forward: list[tuple] = []
         self.prefs = load_prefs()
-        self.sub_title = str(self.m.cfg.root)
-        for t in themes.THEMES:
-            self.register_theme(t)
+        self.palettes = themes.load_all()
+        for p in self.palettes.values():
+            self.register_theme(p.theme())
         wanted = self.prefs.get("theme", themes.DEFAULT)
-        self.theme = wanted if wanted in self.available_themes else themes.DEFAULT
+        self.theme = wanted if wanted in self.palettes else themes.DEFAULT
+
+    def get_theme_variable_defaults(self) -> dict[str, str]:
+        """Every role, so the stylesheet parses before a theme is applied."""
+        palettes = getattr(self, "palettes", None) or themes.load_all()
+        fallback = palettes.get(themes.DEFAULT) or next(iter(palettes.values()))
+        return {f"rk-{k.replace('_', '-')}": v for k, v in fallback.colors.items()}
 
     def compose(self) -> ComposeResult:
-        yield Header()
-        with Horizontal():
-            with Vertical(id="left"):
+        with Horizontal(id="main"):
+            with Vertical(id="left", classes="panel") as left:
+                left.border_title = "[1] Requirements"
+                left.border_subtitle = self.m.cfg.root.name
                 yield Input(placeholder="/ search — regex over id, title, statement, detail", id="search")
                 yield VimTree("reqkit", id="nav")
             yield Divider()
-            yield VimScroll(id="view")
-        yield Footer()
+            view = VimScroll(id="view", classes="panel")
+            view.border_title = "[2] Keys"
+            yield view
+        yield Static(id="keys")
         yield Static(id="peek")
 
     def on_mount(self) -> None:
@@ -492,6 +594,7 @@ class ReqkitApp(App):
         tree.focus()
         tree.cursor_line = 0
         self.show(("help", None))
+        self.refresh_keys()
 
     # ------------------------------------------------------------- layout and prefs
 
@@ -509,12 +612,45 @@ class ReqkitApp(App):
         save_prefs(self.prefs)
 
     def _theme_changed(self, _theme) -> None:
-        self.remember()
         self.relabel()
+        self.refresh_keys()
 
-    def colour(self, name: str) -> str:
-        t = self.current_theme
-        return getattr(t, name, None) or t.primary
+    def colour(self, role: str) -> str:
+        """A role's colour in the current theme, for Rich text that cannot name a variable."""
+        p = self.palettes.get(self.theme) or self.palettes[themes.DEFAULT]
+        return p.colors[role]
+
+    def action_change_theme(self) -> None:
+        def done(name: str | None) -> None:
+            if name:
+                self.theme = name
+                self.remember()
+        self.push_screen(ThemePicker(self.palettes, self.theme), done)
+
+    def action_focus_panel(self, which: str) -> None:
+        self.query_one(f"#{which}").focus()
+
+    def on_descendant_focus(self, event: events.DescendantFocus) -> None:
+        self.refresh_keys()
+
+    def refresh_keys(self) -> None:
+        """The one line of `Action: key` hints, for the focused panel."""
+        try:
+            bar = self.query_one("#keys", Static)
+        except Exception:
+            return
+        in_view = self.focused is not None and self.focused.id == "view"
+        pairs = ([("Next link", "tab"), ("Follow", "enter"), ("Preview", "K"), ("Back", "ctrl+o"),
+                  ("Tree", "h")] if in_view else
+                 [("Search", "/"), ("Open", "l"), ("Reading pane", "tab"), ("Back", "ctrl+o"),
+                  ("Only open questions", "o")])
+        pairs += [("Accept", "a"), ("Theme", "t"), ("Keys", "?"), ("Quit", "q")]
+        parts: list = []
+        for i, (action, key) in enumerate(pairs):
+            if i:
+                parts.append(("  |  ", "$rk-muted"))
+            parts += [(f"{action}: ", "$rk-muted"), (key, "bold $rk-keys")]
+        bar.update(Content.assemble(*parts))
 
     # ------------------------------------------------------------- the tree
 
@@ -530,40 +666,33 @@ class ReqkitApp(App):
     def _req_label(self, r: Req) -> Text:
         t = Text()
         if self.m.reviewed(r):
-            mark, colour = STATUS_MARK.get(r.status, ("?", "secondary"))
-            t.append(f"{mark} ", style=f"bold {self.colour(colour)}")
-        t.append(r.id, style=f"bold {self.colour('primary')}")
+            mark, role = STATUS_MARK.get(r.status, ("?", "muted"))
+            t.append(f"{mark} ", style=f"bold {self.colour(role)}")
+        t.append(r.id, style=self.colour("id"))
         t.append(f"  {r.label}")
         return t
 
     def _topic_label(self, t: str, title: str, n_open: int) -> Text:
-        return Text.assemble((t, "bold"), f"  {title}  ",
-                             (f"{n_open} open", self.colour("error") if n_open else "dim"))
+        return Text.assemble((t, f"bold {self.colour('heading')}"), f"  {title}  ",
+                             (f"{n_open} open", self.colour("open") if n_open else self.colour("muted")))
 
     def _question_label(self, q) -> Text:
-        mark = ("open ", self.colour("error")) if q.open else ("done ", "dim")
-        return Text.assemble(mark, (q.id, "bold"), f"  {q.title}")
+        mark = ("open ", self.colour("open")) if q.open else ("done ", self.colour("muted"))
+        return Text.assemble(mark, (q.id, self.colour("id")), f"  {q.title}")
 
     def relabel(self) -> None:
         """Recolour every label for the current theme, keeping the cursor where it is."""
         tree = self.query_one("#nav", Tree)
-        by_topic = {}
-        for q in self.m.questions:
-            by_topic.setdefault(q.topic, []).append(q)
-
-        def walk(node: TreeNode) -> None:
-            for child in node.children:
-                kind, key = child.data or (None, None)
-                if kind == "req" and key in self.m.reqs:
-                    child.set_label(self._req_label(self.m.reqs[key]))
-                elif kind == "question":
-                    child.set_label(self._question_label(next(q for q in self.m.questions if q.id == key)))
-                elif kind == "topic":
-                    child.set_label(self._topic_label(key, self.m.topics.get(key, ""),
-                                                      sum(1 for q in by_topic.get(key, []) if q.open)))
-                walk(child)
-
-        walk(tree.root)
+        here = tree.cursor_node.data if tree.cursor_node else None
+        self.rebuild()
+        if here:
+            node = self._node_for(here)
+            if node is not None:
+                parent = node.parent
+                while parent is not None:
+                    parent.expand()
+                    parent = parent.parent
+                self.call_after_refresh(tree.move_cursor, node)
 
     def rebuild(self) -> None:
         m = self.m
@@ -578,10 +707,11 @@ class ReqkitApp(App):
             units = [u for u in m.units if u.level == lv.kind]
             if not units:
                 continue
-            lv_node = reqs_root.add(Text.assemble((lv.kind, "bold"), f"  {lv.title}"),
+            lv_node = reqs_root.add(Text.assemble((lv.kind, f"bold {self.colour('title')}"), f"  {lv.title}"),
                                     data=("level", lv.kind), expand=searching)
             for u in units:
-                u_node = lv_node.add(Text.assemble((u.title, "bold"), f"  {', '.join(u.prefixes)}"),
+                u_node = lv_node.add(Text.assemble((u.title, "bold"),
+                                                   (f"  {', '.join(u.prefixes)}", self.colour("muted"))),
                                      data=("unit", u.stem), expand=searching)
                 self._add_document(u_node, u)
                 if searching and not u_node.children:
@@ -613,7 +743,7 @@ class ReqkitApp(App):
                     stack.pop()
                 s = e["section"]
                 node = stack[-1][1].add(
-                    Text.assemble((e["number"], f"bold {self.colour('accent')}"), f" {s.title}"),
+                    Text.assemble((e["number"], f"bold {self.colour('heading')}"), f" {s.title}"),
                     data=("section", (unit.stem, s.key)), expand=searching)
                 stack.append((e["depth"], node))
             else:
@@ -687,14 +817,31 @@ class ReqkitApp(App):
                        f"| Question | | |\n|---|---|---|\n{rows}\n", "prose")]
         if kind == "question":
             q = next(q for q in m.questions if q.id == key)
-            chip = (" open ", "bold $background on $error") if q.open else \
-                (" answered ", "bold $background on $success")
-            head = Static(Content.assemble((q.id, "bold $primary"), "  ", (q.title, "bold"), "  ", chip,
+            chip = ("● open", "bold $rk-open") if q.open else ("● answered", "bold $rk-answered")
+            head = Static(Content.assemble((q.id, "bold $rk-id"), "  ", (q.title, "bold"), "  ", chip,
                                            "\n", (f"Topic {q.topic} — {m.topics.get(q.topic, '')}",
-                                                  "$text-muted")), classes="card-head")
+                                                  "$rk-muted")), classes="card-head")
             body = render.question(q, m.topics.get(q.topic, "")).split("\n", 4)[-1]
             return [Vertical(head, md(linked_md(m, body, sel), "detail"), classes="card full")]
         return []
+
+    def _title_for(self, data) -> str:
+        m = self.m
+        kind, key = data
+        if kind == "req" and key in m.reqs:
+            return f"{key} — {m.reqs[key].label}"
+        if kind == "unit":
+            return m.unit(key).title
+        if kind == "section":
+            u = m.unit(key[0])
+            return f"{u.title} · {u.numbering()[key[1]]} {u.section(key[1]).title}"
+        if kind == "level":
+            return f"{key} — {m.cfg.level(key).title}"
+        if kind == "topic":
+            return f"Topic {key} — {m.topics.get(key, '')}"
+        if kind == "question":
+            return key
+        return "Keys"
 
     def show(self, data, sel: str = "") -> None:
         """Render `data` in the reading pane. With `sel`, the same view again with
@@ -705,6 +852,7 @@ class ReqkitApp(App):
         if not widgets:
             return
         view = self.query_one("#view", VimScroll)
+        view.border_title = f"[2] {self._title_for(data)}"
         scroll = view.scroll_y
         if not sel:
             self.hide_peek()
@@ -728,6 +876,7 @@ class ReqkitApp(App):
     @on(Input.Changed, "#search")
     def _search(self, event: Input.Changed) -> None:
         self.query_text = event.value.strip()
+        self.query_one("#left").set_class(bool(self.query_text), "-searching")
         self.rebuild()
 
     @on(Input.Submitted, "#search")
@@ -793,26 +942,25 @@ class ReqkitApp(App):
         m = self.m
         if target in m.reqs:
             r = m.reqs[target]
-            head = [(r.id, "bold $primary")]
+            head = [(r.id, "bold $rk-id")]
             if r.title:
                 head += ["  ", (r.title, "bold")]
             if m.reviewed(r) and r.status:
                 head += ["  ", _status_chip(r.status)]
             lines = [Content.assemble(*head), Content(""), Content(r.statement)]
             if r.satisfies:
-                lines.append(Content.assemble(("Satisfies  ", "bold $text-muted"), ", ".join(r.satisfies)))
+                lines.append(Content.assemble(("Satisfies  ", "$rk-muted"), ", ".join(r.satisfies)))
             if r.verification:
-                lines.append(Content.assemble(("Verified   ", "bold $text-muted"), r.verification))
+                lines.append(Content.assemble(("Verified   ", "$rk-muted"), r.verification))
             return Content("\n").join(lines)
         q = m.question(target)
         if q:
-            chip = (" open ", "bold $background on $error") if q.open else \
-                (" answered ", "bold $background on $success")
+            chip = ("● open", "bold $rk-open") if q.open else ("● answered", "bold $rk-answered")
             answer = q.answer if len(q.answer) < 400 else q.answer[:399] + "…"
-            lines = [Content.assemble((q.id, "bold $primary"), "  ", (q.title, "bold"), "  ", chip),
+            lines = [Content.assemble((q.id, "bold $rk-id"), "  ", (q.title, "bold"), "  ", chip),
                      Content(""), Content(q.question)]
             if answer:
-                lines += [Content(""), Content.assemble((answer, "$text-muted"))]
+                lines += [Content(""), Content.assemble((answer, "$rk-muted"))]
             return Content("\n").join(lines)
         return Content(target)
 

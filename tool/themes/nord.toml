@@ -1,0 +1,27 @@
+# Nord — https://www.nordtheme.com/docs/colors-and-palettes
+
+name = "nord"
+title = "Nord"
+
+[colors]
+foreground    = "#d8dee9"   # nord4
+muted         = "#616e88"   # nord3-bright
+border        = "#4c566a"   # nord3
+border_active = "#88c0d0"   # nord8
+border_search = "#ebcb8b"   # nord13
+selection     = "#434c5e"   # nord2
+title         = "#88c0d0"   # nord8
+heading       = "#81a1c1"   # nord9
+id            = "#8fbcbb"   # nord7
+link          = "#88c0d0"   # nord8
+link_active   = "#ebcb8b"   # nord13
+code          = "#a3be8c"   # nord14
+table_header  = "#81a1c1"   # nord9
+statement_bar = "#5e81ac"   # nord10
+accepted      = "#a3be8c"   # nord14
+proposed      = "#ebcb8b"   # nord13
+reopened      = "#bf616a"   # nord11
+security      = "#b48ead"   # nord15
+open          = "#d08770"   # nord12
+answered      = "#a3be8c"   # nord14
+keys          = "#88c0d0"   # nord8

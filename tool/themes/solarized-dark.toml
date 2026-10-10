@@ -1,0 +1,27 @@
+# Solarized Dark — https://ethanschoonover.com/solarized/#the-values
+
+name = "solarized-dark"
+title = "Solarized Dark"
+
+[colors]
+foreground    = "#839496"   # body
+muted         = "#586e75"   # comment
+border        = "#586e75"   # comment
+border_active = "#268bd2"   # blue
+border_search = "#b58900"   # yellow
+selection     = "#073642"   # highlight
+title         = "#268bd2"   # blue
+heading       = "#6c71c4"   # violet
+id            = "#2aa198"   # cyan
+link          = "#268bd2"   # blue
+link_active   = "#cb4b16"   # orange
+code          = "#859900"   # green
+table_header  = "#6c71c4"   # violet
+statement_bar = "#cb4b16"   # orange
+accepted      = "#859900"   # green
+proposed      = "#b58900"   # yellow
+reopened      = "#dc322f"   # red
+security      = "#d33682"   # magenta
+open          = "#dc322f"   # red
+answered      = "#859900"   # green
+keys          = "#d33682"   # magenta

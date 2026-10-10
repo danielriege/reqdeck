@@ -1,0 +1,27 @@
+# Dracula — https://draculatheme.com/contribute
+
+name = "dracula"
+title = "Dracula"
+
+[colors]
+foreground    = "#f8f8f2"   # foreground
+muted         = "#6272a4"   # comment
+border        = "#bd93f9"   # purple
+border_active = "#ff79c6"   # pink
+border_search = "#8be9fd"   # cyan
+selection     = "#44475a"   # current-line
+title         = "#ff79c6"   # pink
+heading       = "#bd93f9"   # purple
+id            = "#8be9fd"   # cyan
+link          = "#8be9fd"   # cyan
+link_active   = "#ff79c6"   # pink
+code          = "#f1fa8c"   # yellow
+table_header  = "#bd93f9"   # purple
+statement_bar = "#ff79c6"   # pink
+accepted      = "#50fa7b"   # green
+proposed      = "#ffb86c"   # orange
+reopened      = "#ff5555"   # red
+security      = "#ff79c6"   # pink
+open          = "#ff5555"   # red
+answered      = "#50fa7b"   # green
+keys          = "#ff79c6"   # pink

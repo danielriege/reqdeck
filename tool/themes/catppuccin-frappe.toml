@@ -1,0 +1,27 @@
+# Catppuccin Frappé — https://catppuccin.com/palette
+
+name = "catppuccin-frappe"
+title = "Catppuccin Frappé"
+
+[colors]
+foreground    = "#c6d0f5"   # text
+muted         = "#838ba7"   # overlay1
+border        = "#626880"   # surface2
+border_active = "#ca9ee6"   # mauve
+border_search = "#e5c890"   # yellow
+selection     = "#414559"   # surface0
+title         = "#ca9ee6"   # mauve
+heading       = "#8caaee"   # blue
+id            = "#85c1dc"   # sapphire
+link          = "#99d1db"   # sky
+link_active   = "#ef9f76"   # peach
+code          = "#ef9f76"   # peach
+table_header  = "#babbf1"   # lavender
+statement_bar = "#ca9ee6"   # mauve
+accepted      = "#a6d189"   # green
+proposed      = "#e5c890"   # yellow
+reopened      = "#e78284"   # red
+security      = "#f4b8e4"   # pink
+open          = "#ea999c"   # maroon
+answered      = "#a6d189"   # green
+keys          = "#ca9ee6"   # mauve

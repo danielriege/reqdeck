@@ -1,0 +1,27 @@
+# Catppuccin Macchiato — https://catppuccin.com/palette
+
+name = "catppuccin-macchiato"
+title = "Catppuccin Macchiato"
+
+[colors]
+foreground    = "#cad3f5"   # text
+muted         = "#8087a2"   # overlay1
+border        = "#5b6078"   # surface2
+border_active = "#c6a0f6"   # mauve
+border_search = "#eed49f"   # yellow
+selection     = "#363a4f"   # surface0
+title         = "#c6a0f6"   # mauve
+heading       = "#8aadf4"   # blue
+id            = "#7dc4e4"   # sapphire
+link          = "#91d7e3"   # sky
+link_active   = "#f5a97f"   # peach
+code          = "#f5a97f"   # peach
+table_header  = "#b7bdf8"   # lavender
+statement_bar = "#c6a0f6"   # mauve
+accepted      = "#a6da95"   # green
+proposed      = "#eed49f"   # yellow
+reopened      = "#ed8796"   # red
+security      = "#f5bde6"   # pink
+open          = "#ee99a0"   # maroon
+answered      = "#a6da95"   # green
+keys          = "#c6a0f6"   # mauve

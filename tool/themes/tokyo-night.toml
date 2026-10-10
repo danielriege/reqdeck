@@ -1,0 +1,27 @@
+# Tokyo Night — https://github.com/folke/tokyonight.nvim
+
+name = "tokyo-night"
+title = "Tokyo Night"
+
+[colors]
+foreground    = "#c0caf5"   # fg
+muted         = "#737aa2"   # dark5
+border        = "#3b4261"   # fg-gutter
+border_active = "#7aa2f7"   # blue
+border_search = "#e0af68"   # yellow
+selection     = "#283457"   # bg-visual
+title         = "#7aa2f7"   # blue
+heading       = "#bb9af7"   # magenta
+id            = "#7dcfff"   # cyan
+link          = "#73daca"   # teal
+link_active   = "#ff9e64"   # orange
+code          = "#9ece6a"   # green
+table_header  = "#7aa2f7"   # blue
+statement_bar = "#bb9af7"   # magenta
+accepted      = "#9ece6a"   # green
+proposed      = "#e0af68"   # yellow
+reopened      = "#f7768e"   # red
+security      = "#bb9af7"   # magenta
+open          = "#f7768e"   # red
+answered      = "#9ece6a"   # green
+keys          = "#7aa2f7"   # blue

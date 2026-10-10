@@ -1,0 +1,27 @@
+# Textual Light — https://textual.textualize.io/guide/design/
+
+name = "textual-light"
+title = "Textual Light"
+
+[colors]
+foreground    = "#24292f"   # foreground
+muted         = "#6e7781"   # muted
+border        = "#c0c0c0"   # border
+border_active = "#0178d4"   # secondary
+border_search = "#b36b00"   # accent
+selection     = "#d0e4f5"   # selection
+title         = "#004578"   # primary
+heading       = "#004578"   # primary
+id            = "#0178d4"   # secondary
+link          = "#0178d4"   # secondary
+link_active   = "#b36b00"   # accent
+code          = "#b36b00"   # accent
+table_header  = "#004578"   # primary
+statement_bar = "#b36b00"   # accent
+accepted      = "#2e8b4a"   # success
+proposed      = "#b36b00"   # accent
+reopened      = "#ba3c5b"   # error
+security      = "#b36b00"   # accent
+open          = "#ba3c5b"   # error
+answered      = "#2e8b4a"   # success
+keys          = "#0178d4"   # secondary

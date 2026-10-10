@@ -1,0 +1,27 @@
+# Flexoki — https://stephango.com/flexoki
+
+name = "flexoki"
+title = "Flexoki"
+
+[colors]
+foreground    = "#cecdc3"   # tx
+muted         = "#878580"   # tx-2
+border        = "#403e3c"   # ui-3
+border_active = "#da702c"   # orange
+border_search = "#3aa99f"   # cyan
+selection     = "#343331"   # ui-2
+title         = "#da702c"   # orange
+heading       = "#8b7ec8"   # purple
+id            = "#3aa99f"   # cyan
+link          = "#4385be"   # blue
+link_active   = "#da702c"   # orange
+code          = "#d0a215"   # yellow
+table_header  = "#8b7ec8"   # purple
+statement_bar = "#ce5d97"   # magenta
+accepted      = "#879a39"   # green
+proposed      = "#d0a215"   # yellow
+reopened      = "#d14d41"   # red
+security      = "#ce5d97"   # magenta
+open          = "#d14d41"   # red
+answered      = "#879a39"   # green
+keys          = "#da702c"   # orange

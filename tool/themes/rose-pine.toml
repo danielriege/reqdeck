@@ -1,0 +1,27 @@
+# Rosé Pine — https://rosepinetheme.com/palette/ingredients
+
+name = "rose-pine"
+title = "Rosé Pine"
+
+[colors]
+foreground    = "#e0def4"   # text
+muted         = "#908caa"   # subtle
+border        = "#524f67"   # highlight-high
+border_active = "#c4a7e7"   # iris
+border_search = "#f6c177"   # gold
+selection     = "#403d52"   # highlight-med
+title         = "#c4a7e7"   # iris
+heading       = "#ebbcba"   # rose
+id            = "#9ccfd8"   # foam
+link          = "#9ccfd8"   # foam
+link_active   = "#f6c177"   # gold
+code          = "#f6c177"   # gold
+table_header  = "#c4a7e7"   # iris
+statement_bar = "#eb6f92"   # love
+accepted      = "#9ccfd8"   # foam
+proposed      = "#f6c177"   # gold
+reopened      = "#eb6f92"   # love
+security      = "#c4a7e7"   # iris
+open          = "#eb6f92"   # love
+answered      = "#31748f"   # pine
+keys          = "#c4a7e7"   # iris

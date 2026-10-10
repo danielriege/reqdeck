@@ -145,9 +145,15 @@ works entirely from the keyboard, with vim keys, and with the mouse.
 | `?` | All keys |
 
 Every requirement and question ID in the reading pane is a link; hovering one shows the
-same preview as `tab`. Themes include GitHub, Xcode, VS Code and Darcula in light and dark
-beside Textual's own (Dracula, Nord, Gruvbox, Tokyo Night, Catppuccin, Solarized …). The
-theme and the sidebar width are remembered per user in `~/.config/reqkit/tui.json`.
+same preview as `tab`.
+
+It draws like lazygit: rounded panel borders that change colour on focus, a selected line,
+one hint line, and no background anywhere — the terminal's own shows through. The themes
+are Textual's own — Dracula, Nord, Gruvbox, Tokyo Night, Catppuccin, Solarized, Monokai,
+One Dark, Rosé Pine, Flexoki — each given reqkit's full colour suite by a file in
+[tool/themes/](tool/themes/README.md), which also says how to add your own. A light theme
+belongs on a light terminal. The theme and the sidebar width are remembered per user in
+`~/.config/reqkit/tui.json`.
 
 ## Status
 

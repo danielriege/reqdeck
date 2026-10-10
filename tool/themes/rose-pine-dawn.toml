@@ -1,0 +1,27 @@
+# Rosé Pine Dawn — https://rosepinetheme.com/palette/ingredients
+
+name = "rose-pine-dawn"
+title = "Rosé Pine Dawn"
+
+[colors]
+foreground    = "#575279"   # text
+muted         = "#797593"   # subtle
+border        = "#cecacd"   # highlight-high
+border_active = "#907aa9"   # iris
+border_search = "#ea9d34"   # gold
+selection     = "#dfdad9"   # highlight-med
+title         = "#907aa9"   # iris
+heading       = "#d7827e"   # rose
+id            = "#56949f"   # foam
+link          = "#56949f"   # foam
+link_active   = "#ea9d34"   # gold
+code          = "#ea9d34"   # gold
+table_header  = "#907aa9"   # iris
+statement_bar = "#b4637a"   # love
+accepted      = "#56949f"   # foam
+proposed      = "#ea9d34"   # gold
+reopened      = "#b4637a"   # love
+security      = "#907aa9"   # iris
+open          = "#b4637a"   # love
+answered      = "#286983"   # pine
+keys          = "#907aa9"   # iris

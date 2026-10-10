@@ -1,0 +1,27 @@
+# Monokai — https://monokai.pro
+
+name = "monokai"
+title = "Monokai"
+
+[colors]
+foreground    = "#f8f8f2"   # foreground
+muted         = "#90908a"   # comment-bright
+border        = "#75715e"   # comment
+border_active = "#f92672"   # pink
+border_search = "#e6db74"   # yellow
+selection     = "#49483e"   # selection
+title         = "#f92672"   # pink
+heading       = "#66d9ef"   # blue
+id            = "#66d9ef"   # blue
+link          = "#a6e22e"   # green
+link_active   = "#fd971f"   # orange
+code          = "#e6db74"   # yellow
+table_header  = "#66d9ef"   # blue
+statement_bar = "#f92672"   # pink
+accepted      = "#a6e22e"   # green
+proposed      = "#fd971f"   # orange
+reopened      = "#f92672"   # pink
+security      = "#ae81ff"   # purple
+open          = "#f92672"   # pink
+answered      = "#a6e22e"   # green
+keys          = "#f92672"   # pink

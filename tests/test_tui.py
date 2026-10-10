@@ -158,6 +158,41 @@ class TuiTest(unittest.TestCase):
             self.assertEqual(app.theme, "dracula")
         self.run_app(again)
 
+    def test_every_bundled_theme_is_complete(self):
+        from tool import themes
+        palettes = themes.load_all()
+        self.assertGreaterEqual(len(palettes), 19)
+        for p in palettes.values():
+            self.assertEqual(set(p.colors), set(themes.ROLES), p.name)
+            self.assertIn("rk-border-active", p.theme().variables)
+
+    def test_a_broken_user_theme_is_named(self):
+        from tool import themes
+        bad = Path(self.cfg.name, "reqkit", "themes")
+        bad.mkdir(parents=True)
+        (bad / "mine.toml").write_text('extends = "nord"\n[colors]\nforeground = "#ffffff"\n')
+        with self.assertRaises(themes.ThemeError) as e:
+            themes.load_all()
+        self.assertIn("mine.toml: missing", str(e.exception))
+
+    def test_theme_picker_previews_and_escape_reverts(self):
+        async def steps(app, pilot):
+            app.theme = "dracula"
+            await pilot.press("t")
+            await pilot.pause()
+            await pilot.press("j")
+            await pilot.pause()
+            self.assertNotEqual(app.theme, "dracula")
+            await pilot.press("escape")
+            await pilot.pause()
+            self.assertEqual(app.theme, "dracula")
+            await pilot.press("t")
+            await pilot.pause()
+            await pilot.press("j", "enter")
+            await pilot.pause()
+            self.assertNotEqual(app.theme, "dracula")
+        self.run_app(steps)
+
     def test_accept_is_confirmed_and_written(self):
         async def steps(app, pilot):
             app.action_goto("SR_002")

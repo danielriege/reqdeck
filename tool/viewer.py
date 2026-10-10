@@ -374,7 +374,7 @@ def requirement_card(m: Model, r: Req, full: bool, sel: str = "") -> Vertical:
     if r.security:
         head += ["  ", ("◆ security", "bold $rk-security")]
     parts.append(Static(Content.assemble(*head), classes="card-head"))
-    parts.append(md(linked_md(m, r.statement, sel), "statement"))
+    parts.append(Static(Content.assemble(*linked(m, r.statement, "bold", sel)), classes="statement"))
     if r.detail:
         parts.append(md(linked_md(m, r.detail, sel), "detail"))
 
@@ -445,13 +445,11 @@ class ReqkitApp(App):
         scrollbar-corner-color: transparent; scrollbar-size-vertical: 1; }
     #main { height: 1fr; background: transparent; }
 
-    .panel { border: round $rk-border; border-title-color: $rk-title; border-title-style: bold;
+    .panel { border: round $rk-border; border-title-color: $rk-border; border-title-style: bold;
              border-subtitle-color: $rk-muted; background: transparent; }
-    .panel:focus-within, .panel:focus { border: round $rk-border-active; }
     #left { width: 60; padding: 0; }
     #left.-searching { border: round $rk-border-search; }
     #view { width: 1fr; padding: 0 1; }
-    #view.-linking { border: round $rk-border-active; }
 
     #search { height: 1; border: none; padding: 0 1; margin: 0 0 1 0; background: transparent;
               color: $rk-foreground; }
@@ -480,7 +478,7 @@ class ReqkitApp(App):
     .card-head { height: auto; }
     .card .statement { margin: 1 0 0 0; padding: 0 1; border-left: outer $rk-statement-bar;
                        text-style: bold; }
-    .card .statement MarkdownParagraph { margin: 0; }
+    .skeleton { margin: 1 0 0 0; }
     .card .detail { margin: 1 0 0 0; }
     .card .fields { margin: 1 0 0 0; height: auto; }
     .frow { height: auto; }
@@ -541,6 +539,10 @@ class ReqkitApp(App):
         self.nodes: dict[str, TreeNode] = {}
         self.links: list[str] | None = []
         self.shown: tuple | None = None
+        #: Bumped by every new view, so a fill still running for an old one stops.
+        self._token = 0
+        #: The reading pane holds the real view, not its skeleton.
+        self._filled = False
         self.link_index = -1
         self.hovering = ""
         self.back: list[tuple] = []
@@ -582,6 +584,14 @@ class ReqkitApp(App):
         tree.cursor_line = 0
         self.show(("help", None))
         self.refresh_keys()
+        self.run_worker(self._warm_origins, thread=True, group="warm")
+
+    def _warm_origins(self) -> None:
+        """What every reference is attached to, read in a thread at start, so a
+        requirement with references is as quick to show as one without."""
+        root = self.m.cfg.root
+        for ref in list(self.m.refs):
+            render.origin(root, ref.file, ref.line)
 
     # ------------------------------------------------------------- layout and prefs
 
@@ -618,20 +628,48 @@ class ReqkitApp(App):
         self.refresh_keys()
 
     def refresh_keys(self) -> None:
-        """The one line of `Action: key` hints, for the focused panel."""
+        """The one line of `Action: key` hints — only those that do something here."""
         try:
             bar = self.query_one("#keys", Static)
+            tree = self.query_one("#nav", Tree)
+            view = self.query_one("#view", ReadingPane)
+            peek = self.query_one("#peek", Static)
         except Exception:
             return
-        pairs = [("Search", "/"), ("Next link", "tab"), ("Follow", "enter"), ("Back", "ctrl+o"),
-                 ("Scroll", "ctrl+d/u"), ("Only open questions", "o"), ("Accept", "a"),
-                 ("Theme", "t"), ("Keys", "?"), ("Quit", "q")]
+        node = tree.cursor_node
+        data = node.data if node is not None else None
+        in_questions = False
+        while node is not None:
+            if node.data and node.data[0] == "qroot":
+                in_questions = True
+            node = node.parent
+        pairs = [("Search", "/")]
+        if self._ensure_links():
+            pairs.append(("Next link", "tab"))
+        if peek.display and 0 <= self.link_index < len(self.links or []):
+            ref = self.links[self.link_index].startswith("ref:")
+            pairs.append(("Open in editor" if ref else "Follow", "enter"))
+        if self.back:
+            pairs.append(("Back", "ctrl+o"))
+        if self.forward:
+            pairs.append(("Forward", "]"))
+        if view.max_scroll_y > 0:
+            pairs.append(("Scroll", "ctrl+d/u"))
+        if in_questions:
+            pairs.append(("All questions" if self.open_only else "Only open questions", "o"))
+        if data and data[0] == "req" and data[1] in self.m.reqs:
+            r = self.m.reqs[data[1]]
+            if self.m.reviewed(r) and r.status != "Accepted":
+                pairs.append(("Accept", "a"))
+        pairs += [("Theme", "t"), ("Keys", "?"), ("Quit", "q")]
         parts: list = []
         for i, (action, key) in enumerate(pairs):
             if i:
                 parts.append(("  |  ", "$rk-muted"))
             parts += [(f"{action}: ", "$rk-muted"), (key, "bold $rk-keys")]
-        bar.update(Content.assemble(*parts))
+        line = Content.assemble(*parts)
+        if str(line) != str(bar.content):           # a repaint only when it changed
+            bar.update(line)
 
     # ------------------------------------------------------------- the tree
 
@@ -700,7 +738,7 @@ class ReqkitApp(App):
             if searching and not lv_node.children:
                 lv_node.remove()
 
-        q_root = tree.root.add("Open questions", data=("root", None), expand=searching or self.open_only)
+        q_root = tree.root.add("Open questions", data=("qroot", None), expand=searching or self.open_only)
         by_topic: dict[str, list] = {}
         for q in m.questions:
             by_topic.setdefault(q.topic, []).append(q)
@@ -824,40 +862,121 @@ class ReqkitApp(App):
             return key
         return "Keys"
 
+    CONTENT_KINDS = ("req", "unit", "section", "level", "topic", "question", "help")
+    #: How long the cursor must rest before a view is filled.
+    FILL_DELAY = 0.08
+
     def show(self, data, sel: str = "", keep: bool = False) -> None:
-        """Render `data` in the reading pane. With `sel`, or `keep`, the same view
-        again — `sel` the link under the cursor — scrolled where it was."""
-        keep = keep or bool(sel)
-        if not data:
-            return
-        widgets = self._widgets_for(data, sel)
-        if not widgets:
+        """Show `data` in the reading pane.
+
+        A new view appears as a skeleton at once and is filled in a worker once
+        the cursor rests, so moving quickly through the tree draws only skeletons.
+        With `sel` or `keep` it is the same view again — `sel` the link under the
+        cursor — rebuilt at once, scrolled where it was."""
+        if not data or data[0] not in self.CONTENT_KINDS:
             return
         view = self.query_one("#view", ReadingPane)
-        view.border_title = self._title_for(data)
-        scroll = view.scroll_y
-        view.set_class(bool(sel), "-linking")
-        if not keep:
-            self.hide_peek()
-            self.shown = data
-            # A document's links are its cards; anything else's are read off
-            # the rendered page, in reading order, once it is mounted.
-            self.links = self._links_for(data) if data[0] in ("unit", "section") else None
-            self.link_index = -1
-        # A fresh page per view: the old one is removed asynchronously, and its
-        # cards share IDs with the new one's.
-        old = list(view.query(".page"))
-        with self.batch_update():
-            for page in old:
-                page.remove()
-            view.mount(Vertical(*widgets, classes="page"))
-        if sel:
-            # The link preview restores this, in order with revealing the link.
-            self._restore_scroll = scroll
-        elif keep:
-            self.call_after_refresh(view.scroll_to, y=scroll, animate=False)
-        else:
+        title = self._title_for(data)
+        if view.border_title != title:
+            view.border_title = title
+        if sel or keep:
+            self._replace(self._widgets_for(data, sel))
+            if sel:
+                # The link preview restores this, in order with revealing the link.
+                self._restore_scroll = view.scroll_y
+            else:
+                self.call_after_refresh(view.scroll_to, y=view.scroll_y, animate=False)
+            return
+        self.hide_peek()
+        self.shown = data
+        self.links = None
+        self.link_index = -1
+        self._filled = False
+        self._token += 1
+        if self._cheap(data):
+            # Nothing slow to draw: no Markdown, no document. Shown at once.
+            self.workers.cancel_group(self, "render")
+            self._replace(self._widgets_for(data))
             view.scroll_home(animate=False)
+            # Its links are read off the page, which is mounted by the next frame.
+            self.call_after_refresh(self._mark_filled, self._token)
+            return
+        top, bars = self._skeleton(data)
+        current = view.query(".page")
+        if current and current.last().has_class("skeleton-page") and len(current.last().children) == 2:
+            # Moving on from a skeleton: rewrite its header in place, nothing to lay out.
+            current.last().children[0].update(top.content)
+        else:
+            self._replace([top, bars]).add_class("skeleton-page")
+            view.scroll_home(animate=False)
+        self.run_worker(self._fill(data, self._token), exclusive=True, group="render")
+        self.refresh_keys()
+
+    def _mark_filled(self, token: int) -> None:
+        if token == self._token:
+            self._filled = True
+            self.refresh_keys()
+
+    def _cheap(self, data) -> bool:
+        """A view with nothing slow to lay out: a requirement without a detail table,
+        whose references' origins are already known."""
+        kind, key = data
+        if kind != "req" or key not in self.m.reqs or self.m.reqs[key].detail:
+            return False
+        root = self.m.cfg.root
+        return all(render.origin_cached(root, x.file, x.line) for x in self.m.refs_for(key))
+
+    def _replace(self, widgets: list[Widget]) -> Widget:
+        """A fresh page holding `widgets`: the old one is removed asynchronously,
+        and its cards share IDs with the new one's."""
+        view = self.query_one("#view", ReadingPane)
+        page = Vertical(*widgets, classes="page")
+        with self.batch_update():
+            for old in list(view.query(".page")):
+                old.remove()
+            view.mount(page)
+        return page
+
+    def _skeleton(self, data) -> list[Widget]:
+        """What a view looks like before it is filled: its header, and grey bars."""
+        m = self.m
+        kind, key = data
+        if kind == "req" and key in m.reqs:
+            r = m.reqs[key]
+            head = [(r.id, "bold $rk-id")] + (["  ", (r.title, "bold $rk-foreground")] if r.title else [])
+            if m.reviewed(r) and r.status:
+                head += ["  ", _status_chip(r.status)]
+        else:
+            head = [(self._title_for(data), "bold $rk-heading")]
+        top = Static(Content.assemble(*head), classes="card-head")
+        bars = [58, 44, 0, 70, 66, 52, 0, 24, 30, 28, 0, 36, 40]
+        lines = Content("\n").join(Content.assemble(("▆" * w, "$rk-selection")) for w in bars)
+        return [top, Static(lines, classes="skeleton")]
+
+    async def _fill(self, data, token: int) -> None:
+        await asyncio.sleep(self.FILL_DELAY)        # only once the cursor rests
+        if token != self._token:
+            return
+        if data[0] == "req" and data[1] in self.m.reqs:
+            # File reads — what each reference is attached to — off the main thread.
+            refs = self.m.refs_for(data[1])
+            await asyncio.to_thread(lambda: [render.origin(self.m.cfg.root, x.file, x.line) for x in refs])
+        widgets = self._widgets_for(data)
+        if token != self._token or not widgets:
+            return
+        page = self._replace([])
+        # A screenful at once, then the rest a batch a frame.
+        batches = [widgets[:6]] + [widgets[i:i + 12] for i in range(6, len(widgets), 12)]
+        for batch in batches:
+            await page.mount_all(batch)
+            await asyncio.sleep(0)
+            if token != self._token:
+                return
+        if data[0] in ("unit", "section"):
+            self.links = self._links_for(data)
+        self._filled = True
+        self.refresh_keys()
+        self.call_after_refresh(self.refresh_keys)  # again once laid out: whether it scrolls
 
     # ------------------------------------------------------------- actions
 
@@ -882,6 +1001,7 @@ class ReqkitApp(App):
     def action_toggle_open(self) -> None:
         self.open_only = not self.open_only
         self.rebuild()
+        self.refresh_keys()
 
     def action_help(self) -> None:
         self.show(("help", None))
@@ -1003,14 +1123,18 @@ class ReqkitApp(App):
             y = cell[1] + 1 if cell[1] + 1 + height <= bottom else cell[1] - height
         peek.styles.offset = (max(0, min(x, self.size.width - width - 1)), max(0, y))
         peek.display = True
+        self.refresh_keys()
 
     def hide_peek(self) -> bool:
         # A preview still being placed would reappear after this.
-        self.workers.cancel_group(self, "peek")
+        if any(w.group == "peek" and w.is_running for w in self.workers):
+            self.workers.cancel_group(self, "peek")
         peek = self.query_one("#peek", Static)
         shown = bool(peek.display)
         peek.display = False
         self.hovering = ""
+        if shown:
+            self.refresh_keys()
         return shown
 
     def on_mouse_move(self, event: events.MouseMove) -> None:
@@ -1045,6 +1169,8 @@ class ReqkitApp(App):
         return []
 
     def _ensure_links(self) -> list[str]:
+        if not self._filled:
+            return []
         if self.links is None:
             page = self._page()
             own = self.shown[1] if self.shown else None
@@ -1083,6 +1209,7 @@ class ReqkitApp(App):
         target = links[self.link_index]
         # The last preview may cover the next link, which then cannot be found on screen.
         self.hide_peek()
+        self.query_one("#view").add_class("-linking")
         kind = self.shown[0] if self.shown else ""
         if kind in ("unit", "section"):
             # A document: the cursor is on whole cards, so no re-render is needed.
@@ -1314,6 +1441,7 @@ class ReqkitApp(App):
             r.status = "Accepted"
             node.set_label(self._req_label(r))
             self.show(node.data)
+            self.refresh_keys()
             self.notify(f"{r.id} accepted")
 
         self.push_screen(Confirm(f"Accept {r.id} — {r.label}?\n\nYou have read it and agree with it."), done)

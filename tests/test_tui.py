@@ -84,7 +84,7 @@ class TuiTest(unittest.TestCase):
     def test_follow_a_link_and_come_back(self):
         async def steps(app, pilot):
             app.action_goto("SR_002")
-            await pilot.pause()
+            await self.settle(app, pilot)
             self.assertEqual(self.cursor(app), ("req", "SR_002"))
             await pilot.press("tab")                   # first link, previewed and highlighted
             await self.settle(app, pilot)
@@ -106,16 +106,16 @@ class TuiTest(unittest.TestCase):
     def test_link_to_a_question(self):
         async def steps(app, pilot):
             app.action_goto("SR_002")
-            await pilot.pause()
+            await self.settle(app, pilot)
             app.action_goto("OQ-0102")
-            await pilot.pause()
+            await self.settle(app, pilot)
             self.assertEqual(self.cursor(app), ("question", "OQ-0102"))
         self.run_app(steps)
 
     def test_hovering_a_link_previews_it(self):
         async def steps(app, pilot):
             app.action_goto("SR_002")
-            await pilot.pause()
+            await self.settle(app, pilot)
             peek = app.query_one("#peek")
             head = app.query_one(".chain")              # "Satisfies ↑" then "  A-01  …"
             await pilot.hover(head, offset=(3, 1))
@@ -130,7 +130,7 @@ class TuiTest(unittest.TestCase):
     def test_tab_preview_opens_where_a_hover_would(self):
         async def steps(app, pilot):
             app.action_goto("SR_002")
-            await pilot.pause()
+            await self.settle(app, pilot)
             for _ in range(3):                         # onto A-01, in the chain
                 await pilot.press("tab")
                 await self.settle(app, pilot)
@@ -152,7 +152,7 @@ class TuiTest(unittest.TestCase):
             async with app.run_test(size=(120, 24)) as pilot:   # short, so some must flip above
                 await pilot.pause()
                 app.action_goto("SR_002")
-                await pilot.pause()
+                await self.settle(app, pilot)
                 for _ in range(len(app._ensure_links())):
                     await pilot.press("tab")
                     await self.settle(app, pilot)
@@ -174,7 +174,7 @@ class TuiTest(unittest.TestCase):
             import contextlib
             from unittest import mock
             app.action_goto("SSR_APP_001")
-            await pilot.pause()
+            await self.settle(app, pilot)
             await pilot.press("tab")
             await self.settle(app, pilot)
             # The source names OQ-0101; then the chain; then code and test.
@@ -200,7 +200,7 @@ class TuiTest(unittest.TestCase):
     def test_escape_drops_the_link_then_the_search_and_enter_toggles(self):
         async def steps(app, pilot):
             app.action_goto("SR_002")
-            await pilot.pause()
+            await self.settle(app, pilot)
             view = app.query_one("#view")
             await pilot.press("tab")
             await self.settle(app, pilot)
@@ -226,10 +226,62 @@ class TuiTest(unittest.TestCase):
             self.assertEqual(app.focused.id, "nav")
         self.run_app(steps)
 
+    def test_fast_navigation_draws_skeletons_until_the_cursor_rests(self):
+        # A detail table is what makes a requirement slow enough to need a skeleton.
+        self.p.write("reqs/system.details.md", "## SR_002\n\n| a | b |\n|---|---|\n| 1 | 2 |\n")
+
+        async def steps(app, pilot):
+            app.action_goto("SR_001")
+            await self.settle(app, pilot)
+            app.FILL_DELAY = 0.5                                     # long enough to look
+            await pilot.press("j")
+            await pilot.pause()
+            self.assertTrue(app.query("#view .skeleton"))          # at once: the skeleton
+            self.assertFalse(app._filled)
+            await self.settle(app, pilot)
+            self.assertFalse(app.query("#view .skeleton"))         # once resting: the content
+            self.assertTrue(app.query("#view .statement"))
+            self.assertTrue(app._filled)
+            await pilot.press("k")                                  # no table: drawn at once
+            await pilot.pause()
+            self.assertFalse(app.query("#view .skeleton"))
+            self.assertTrue(app._filled)
+        self.run_app(steps)
+
+    def test_hints_show_only_what_applies(self):
+        def keys(app):
+            return str(app.query_one("#keys").content)
+
+        async def steps(app, pilot):
+            await self.settle(app, pilot)
+            self.assertNotIn("Back", keys(app))                   # nowhere to go back to yet
+            self.assertNotIn("Next link", keys(app))
+            app.action_goto("SR_001")
+            await self.settle(app, pilot)
+            self.assertNotIn("Follow", keys(app))
+            self.assertNotIn("Only open questions", keys(app))
+            self.assertIn("Accept", keys(app)) if app.m.reqs["SR_001"].status != "Accepted" \
+                else self.assertNotIn("Accept", keys(app))
+            app.action_goto("SR_002")
+            await self.settle(app, pilot)
+            self.assertIn("Back", keys(app))
+            self.assertIn("Accept", keys(app))
+            self.assertIn("Next link", keys(app))
+            await pilot.press("tab")
+            await self.settle(app, pilot)
+            self.assertIn("Follow", keys(app))
+            await pilot.press("escape")
+            await pilot.pause()
+            self.assertNotIn("Follow", keys(app))
+            app.action_goto("OQ-0102")
+            await self.settle(app, pilot)
+            self.assertIn("Only open questions", keys(app))
+        self.run_app(steps)
+
     def test_document_cursor_steps_through_cards(self):
         async def steps(app, pilot):
             app._move_to(("unit", "system"))
-            await pilot.pause()
+            await self.settle(app, pilot)
             await pilot.press("tab")
             await self.settle(app, pilot)
             self.assertTrue(app.query_one("#card-SR_001").has_class("-selected"))
@@ -301,7 +353,7 @@ class TuiTest(unittest.TestCase):
     def test_accept_is_confirmed_and_written(self):
         async def steps(app, pilot):
             app.action_goto("SR_002")
-            await pilot.pause()
+            await self.settle(app, pilot)
             await pilot.press("a")
             await pilot.pause()
             await pilot.press("y")

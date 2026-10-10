@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import functools
 from pathlib import Path
 
 from .model import Model, Req
@@ -95,6 +96,30 @@ COMMENT = ("//", "/*", "*", "#", '"""', "'''", "--", "///")
 def origin(root: Path, file: str, line: int) -> str:
     """What the marker at `line` is attached to: the first line of code after its
     comment, or "file header" when the comment is the file's own @file block."""
+    try:
+        mtime = (root / file).stat().st_mtime_ns
+    except OSError:
+        return ""
+    _seen.add((root, file, line, mtime))
+    return _origin(root, file, line, mtime)
+
+
+def origin_cached(root: Path, file: str, line: int) -> bool:
+    """Whether `origin` would answer without reading the file."""
+    try:
+        mtime = (root / file).stat().st_mtime_ns
+    except OSError:
+        return True
+    key = (root, file, line, mtime)
+    return key in _seen
+
+
+_seen: set = set()
+
+
+@functools.lru_cache(maxsize=4096)
+def _origin(root: Path, file: str, line: int, mtime: int) -> str:
+    """`origin`, cached until the file changes."""
     try:
         lines = (root / file).read_text(errors="replace").splitlines()
     except OSError:

@@ -1,0 +1,22 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "reqkit"
+version = "0.1.0"
+description = "Requirements, open questions and traceability in a git repository"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+tui = ["textual>=0.60"]
+
+[project.scripts]
+req = "tool.cli:main"
+req-tui = "tool.viewer:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["tool"]

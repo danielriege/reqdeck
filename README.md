@@ -5,7 +5,7 @@
 Think of <a href="https://www.ibm.com/products/requirements-management">IBM DOORS</a>, but it lives in your git repo, fits in your terminal, and your AI agent can read it.
 <br><br>
 
-<a href="https://github.com/danielriege/reqdeck/actions/workflows/ci.yml"><img src="https://github.com/danielriege/reqdeck/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+<a href="https://github.com/danielriege/reqdeck/actions/workflows/release.yml"><img src="https://github.com/danielriege/reqdeck/actions/workflows/release.yml/badge.svg" alt="Release"></a>
 <img src="https://img.shields.io/badge/python-3.11%2B-blue" alt="Python 3.11+">
 <a href="https://pypi.org/project/reqdeck/"><img src="https://img.shields.io/pypi/v/reqdeck" alt="PyPI"></a>
 <a href="https://github.com/danielriege/reqdeck/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT license"></a>

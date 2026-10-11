@@ -361,6 +361,45 @@ class TuiTest(unittest.TestCase):
         self.run_app(steps)
         self.assertEqual(self.p.model().reqs["SR_002"].status, "Accepted")
 
+    def test_reload_spins_while_it_runs_and_redraws_only_a_change(self):
+        async def steps(app, pilot):
+            bar = app.query_one("#keys")
+            self.assertNotIn("Reloading", str(bar.content))
+            app.action_goto("SR_002")
+            await self.settle(app, pilot)
+            page = app._page()
+            app.reload()
+            await pilot.pause()
+            self.assertTrue(str(bar.content).startswith("Reloading |"))
+            await self.settle(app, pilot)
+            self.assertNotIn("Reloading", str(bar.content))
+            self.assertIs(app._page(), page)            # nothing changed: nothing redrawn
+
+            ops.edit(self.p.model(), "SR_002", {"title": "Shine"})
+            app.reload()
+            await self.settle(app, pilot)
+            self.assertEqual(self.cursor(app), ("req", "SR_002"))
+            self.assertIn("Shine", str(app._page().query_one(".card-head").content))
+        self.run_app(steps)
+
+    def test_reload_runs_on_its_own_unless_turned_off(self):
+        from reqdeck.viewer import ReqdeckApp, save_prefs
+
+        async def go(prefs):
+            save_prefs(prefs)
+            app = ReqdeckApp()
+            app.SPIN_AT_LEAST = 0
+            async with app.run_test(size=(160, 48)) as pilot:
+                await pilot.pause()
+                rid, _, _ = ops.add(self.p.model(), "SR", {
+                    "title": "Hum", "statement": "The system shall hum.", "satisfies": "A-01",
+                    "topic": "01", "source": "OQ-0102.", "verification": "T"})
+                await asyncio.sleep(0.5)            # a tick after the change, at least
+                await self.settle(app, pilot)
+                return rid in app.nodes
+        self.assertTrue(asyncio.run(go({"reload": 0.1})))
+        self.assertFalse(asyncio.run(go({"reload": 0})))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -32,7 +32,7 @@ classifiers = [
 Homepage = "https://github.com/danielriege/reqdeck"
 Source = "https://github.com/danielriege/reqdeck"
 Issues = "https://github.com/danielriege/reqdeck/issues"
-Changelog = "https://github.com/danielriege/reqdeck/releases"
+Changelog = "https://github.com/danielriege/reqdeck/blob/main/CHANGELOG.md"
 
 [project.scripts]
 reqdeck = "reqdeck.cli:main"
@@ -49,4 +49,4 @@ packages = ["reqdeck"]
 "skills" = "reqdeck/skills"
 
 [tool.hatch.build.targets.sdist]
-include = ["reqdeck", "skills", "tests", "examples", "README.md", "LICENSE", "pyproject.toml"]
+include = ["reqdeck", "skills", "tests", "examples", "README.md", "CHANGELOG.md", "LICENSE", "pyproject.toml"]

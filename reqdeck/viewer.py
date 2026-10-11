@@ -3,7 +3,8 @@ questions beside them. Reads through the same model as the CLI and writes
 through the same operations.
 
 Needs `textual`, which the CLI does not. The chosen theme and sidebar width
-are remembered per user in `$XDG_CONFIG_HOME/reqdeck/tui.json`.
+are remembered per user in `$XDG_CONFIG_HOME/reqdeck/tui.json`, and the seconds
+between reloads read from it: `"reload": 30` by default, `0` for never.
 """
 
 from __future__ import annotations
@@ -61,7 +62,7 @@ The tree always has the cursor; the reading pane shows what it highlights.
 | `a` | Accept the highlighted requirement |
 | `<` `>` | Narrow or widen the sidebar — or drag the divider |
 | `t` | Theme — previewed as you move, `enter` keeps it |
-| `r` | Reload from disk |
+| `r` | Reload from disk — it also does so every 30 seconds |
 | `q` | Quit |
 
 Every requirement and question ID in the reading pane is a link, and so is every code
@@ -527,6 +528,12 @@ class ReqdeckApp(App):
         Binding("greater_than_sign", "resize(4)", show=False),
         Binding("q", "quit", "Quit"),
     ]
+    #: Seconds between reloads from disk, unless `tui.json` names its own; 0 is never.
+    RELOAD_EVERY = 30
+    #: Frames of the spinner drawn while a reload runs, as lazygit's.
+    SPINNER = "|/-\\"
+    #: The spinner stays up at least this long, so a fast reload is still seen.
+    SPIN_AT_LEAST = 0.5
 
     def __init__(self):
         # ansi_color leaves the terminal's own background unpainted: with it
@@ -546,6 +553,10 @@ class ReqdeckApp(App):
         self.hovering = ""
         self.back: list[tuple] = []
         self.forward: list[tuple] = []
+        #: The spinner's frame while a reload runs; None when none does.
+        self._spin: int | None = None
+        #: The last reload's error, so a file left broken is reported once.
+        self._reload_error = ""
         self.prefs = load_prefs()
         self.palettes = themes.load_all()
         for p in self.palettes.values():
@@ -584,6 +595,12 @@ class ReqdeckApp(App):
         self.show(("help", None))
         self.refresh_keys()
         self.run_worker(self._warm_origins, thread=True, group="warm")
+        try:
+            every = float(self.prefs.get("reload", self.RELOAD_EVERY))
+        except (TypeError, ValueError):
+            every = self.RELOAD_EVERY
+        if every > 0:
+            self.set_interval(every, self.reload)
 
     def _warm_origins(self) -> None:
         """What every reference is attached to, read in a thread at start, so a
@@ -666,6 +683,9 @@ class ReqdeckApp(App):
             if i:
                 parts.append(("  |  ", "$rk-muted"))
             parts += [(f"{action}: ", "$rk-muted"), (key, "bold $rk-keys")]
+        if self._spin is not None:
+            frame = self.SPINNER[self._spin % len(self.SPINNER)]
+            parts = [(f"Reloading {frame}", "bold $rk-link-active"), "    "] + parts
         line = Content.assemble(*parts)
         if str(line) != str(bar.content):           # a repaint only when it changed
             bar.update(line)
@@ -782,6 +802,8 @@ class ReqdeckApp(App):
 
     @on(Tree.NodeHighlighted)
     def _highlighted(self, event: Tree.NodeHighlighted) -> None:
+        if event.node.data == self.shown:
+            return              # the tree rebuilt under a view it already shows
         self.show(event.node.data)
 
     def _widgets_for(self, data, sel: str = "") -> list[Widget]:
@@ -1005,11 +1027,65 @@ class ReqdeckApp(App):
     def action_help(self) -> None:
         self.show(("help", None))
 
-    def action_reload(self, quiet: bool = False) -> None:
-        self.m = load_model()
-        self.relabel()          # rebuilds the tree, keeping the cursor where it was
-        if not quiet:
+    def action_reload(self) -> None:
+        self.reload(say=True)
+
+    def reload(self, say: bool = False) -> None:
+        """Read the model from disk again, in a thread, with the spinner up meanwhile.
+        A dialog defers it: the next one comes soon enough."""
+        if self._spin is not None or len(self.screen_stack) > 1:
+            return
+        self._spin = 0
+        self.refresh_keys()
+        self.run_worker(self._reload(say), exclusive=True, group="reload")
+
+    async def _reload(self, say: bool) -> None:
+        start = time.monotonic()
+        ticker = self.set_interval(0.1, self._spin_on)
+        try:
+            m, error = await asyncio.to_thread(load_model), ""
+        except Exception as e:      # a broken config or file, maybe half written
+            m, error = None, str(e)
+        await asyncio.sleep(max(0.0, self.SPIN_AT_LEAST - (time.monotonic() - start)))
+        ticker.stop()
+        self._spin = None
+        self.refresh_keys()
+        if error:
+            if say or error != self._reload_error:
+                self.notify(error, title="Reload failed", severity="error")
+            self._reload_error = error
+            return
+        self._reload_error = ""
+        if len(self.screen_stack) == 1 and not self._same(m, self.m):
+            self.m = m
+            self.drop_link()
+            self.relabel()          # rebuilds the tree, keeping the cursor where it was
+            here = self.shown
+            if here and (here[0] == "help" or self._node_for(here) is not None):
+                # Redrawn from the new model, scrolled where it was.
+                self.links = self._links_for(here) if here[0] in ("unit", "section") else None
+                self.show(here, keep=True)
+            else:
+                self.call_after_refresh(self._show_cursor)     # it is gone
+        if say:
             self.notify("Reloaded")
+
+    def _show_cursor(self) -> None:
+        node = self.query_one("#nav", Tree).cursor_node
+        if node is not None:
+            self.show(node.data)
+
+    def _spin_on(self) -> None:
+        if self._spin is not None:
+            self._spin += 1
+            self.refresh_keys()
+
+    @staticmethod
+    def _same(a: Model, b: Model) -> bool:
+        """Nothing on disk changed between two loads, so nothing need be redrawn."""
+        def facts(m: Model) -> tuple:
+            return m.cfg, m.units, m.reqs, m.refs, m.topics, m.questions, m.load_problems
+        return facts(a) == facts(b)
 
     def action_next_match(self, direction: int) -> None:
         tree = self.query_one("#nav", Tree)
@@ -1301,7 +1377,7 @@ class ReqdeckApp(App):
             if terminal:
                 with self.suspend():
                     subprocess.run(argv, cwd=self.m.cfg.root)
-                self.action_reload(quiet=True)
+                self.reload()
             else:
                 subprocess.Popen(argv, cwd=self.m.cfg.root, stdin=subprocess.DEVNULL,
                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,

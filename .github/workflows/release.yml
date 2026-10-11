@@ -23,6 +23,10 @@ jobs:
         run: |
           version=$(python -c "import re; print(re.search(r'__version__ = \"(.+)\"', open('reqdeck/__init__.py').read())[1])")
           test "v${version}" = "${GITHUB_REF_NAME}" || { echo "tag ${GITHUB_REF_NAME} is not v${version}"; exit 1; }
+      - name: The changelog names the version
+        run: |
+          version=${GITHUB_REF_NAME#v}
+          grep -q "^## \[${version}\]" CHANGELOG.md || { echo "CHANGELOG.md has no section for ${version}"; exit 1; }
       - run: pip install build
       - run: python -m build
       - uses: pypa/gh-action-pypi-publish@release/v1

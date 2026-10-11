@@ -18,7 +18,7 @@ except `selection`, the one filled row.
 | `heading` | Section headings and numbers in a document |
 | `id` | A requirement or question ID |
 | `link` | An ID in running text, which can be followed |
-| `link_active` | The link under the keyboard cursor, and the preview's border |
+| `link_active` | The link under the keyboard cursor, the preview's border, and `Reloading` in the hint line |
 | `code` | Inline code — byte values, command codes |
 | `table_header` | A table's header row |
 | `statement_bar` | The bar beside a requirement's statement |

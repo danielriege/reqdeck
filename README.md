@@ -156,6 +156,11 @@ Flexoki), each given a full colour suite by a file in [reqdeck/themes/](https://
 where you can add your own. Your theme and sidebar width are remembered in
 `~/.config/reqdeck/tui.json`.
 
+It reloads from disk every 30 seconds, so what an agent or your editor writes shows up on its
+own — `Reloading` spins at the left of the hint line while it does, and only a change redraws
+anything. `r` reloads at once. Set `"reload"` in `tui.json` to the seconds between reloads, or
+`0` to turn it off.
+
 ## The CLI
 
 ```bash
@@ -272,6 +277,11 @@ source file is scanned and a marker may sit anywhere.
 ```bash
 python3 -m unittest discover tests     # the TUI tests skip without textual
 ```
+
+Every change a user would notice gets a line under `Unreleased` in
+[CHANGELOG.md](https://github.com/danielriege/reqdeck/blob/main/CHANGELOG.md), in the same
+commit. A release renames that section to its version; publishing refuses a version the
+changelog does not name.
 
 ## License
 

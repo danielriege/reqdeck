@@ -6,10 +6,13 @@ What changed in each release of reqdeck. The format follows
 
 Every change a user would notice gets a line under **Unreleased**, in the commit that makes
 it. To release: rename **Unreleased** to the version and date, open a new empty
-**Unreleased** above it, bump `reqdeck/__init__.py`, tag `vX.Y.Z` — and paste the section
-into the GitHub release.
+**Unreleased** above it, bump the version in `reqdeck/__init__.py` and
+`.claude-plugin/plugin.json`, re-record the README's media with `scripts/record-demo.sh`,
+then tag `vX.Y.Z` — and paste the section into the GitHub release.
 
 ## [Unreleased]
+
+## [0.2.0] - 2026-10-17
 
 ### Added
 
@@ -17,7 +20,6 @@ into the GitHub release.
   on its own. `Reloading` spins at the left of the hint line while it runs; a reload that
   finds nothing changed redraws nothing, and one that does keeps the reading pane where it
   was scrolled. `"reload"` in `~/.config/reqdeck/tui.json` sets the seconds, `0` turns it off.
-
 - Every requirement shows how far it is built, beside its review status: Done, Untested,
   Partial, Not implemented or Unsatisfied, judged over it and everything that satisfies it, so
   a user story is Done only once its whole chain is. The tree marks it `✓` `◑` `◔` `○` `✗`, the
@@ -32,9 +34,9 @@ into the GitHub release.
 
 - A requirement that must both be satisfied from below and named by code is done either way:
   broken down, with code naming every requirement beneath it, or implemented as it stands,
-  with code naming it. Before, it needed its own code marker and something satisfying it — an interface
-  requirement with code but nothing satisfying it was a gap, and so was one whose code sat on
-  the software requirements beneath it.
+  with code naming it. Before, it needed its own code marker and something satisfying it — an
+  interface requirement with code but nothing satisfying it was a gap, and so was one whose
+  code sat on the software requirements beneath it.
 - A test beneath a requirement counts for it only where its level must be satisfied, and then
   every requirement beneath it needs one — as for code. Before, one test anywhere beneath was
   enough, so a system requirement with one tested and one untested software requirement
@@ -47,5 +49,6 @@ into the GitHub release.
 First release: CSV requirements and open questions in your repository, `@REQ_REF` markers
 in code and tests, the `reqdeck` CLI and TUI, and the skills for Claude Code.
 
-[Unreleased]: https://github.com/danielriege/reqdeck/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/danielriege/reqdeck/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/danielriege/reqdeck/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/danielriege/reqdeck/releases/tag/v0.1.0

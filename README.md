@@ -329,6 +329,10 @@ test = true                   # and a test must name every one of those too
 python3 -m unittest discover tests     # the TUI tests skip without textual
 ```
 
+The demo GIF and the screenshot above are recorded, not drawn: `scripts/record-demo.sh`
+installs this checkout into a throwaway virtualenv and plays `docs/demo.tape` and
+`docs/document.tape` through [vhs](https://github.com/charmbracelet/vhs). It needs vhs and nvim.
+
 Every change a user would notice gets a line under `Unreleased` in
 [CHANGELOG.md](https://github.com/danielriege/reqdeck/blob/main/CHANGELOG.md), in the same
 commit. A release renames that section to its version; publishing refuses a version the

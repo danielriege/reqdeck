@@ -1,9 +1,5 @@
-# The README's demo. Regenerate from the repository root, with reqdeck installed:
-#
-#   vhs docs/demo.tape
-#
-# A throwaway XDG_CONFIG_HOME keeps the recording free of your own reqdeck
-# preferences and your own nvim configuration.
+# The README's demo. Recorded by scripts/record-demo.sh, which installs this
+# checkout and sets a clean XDG_CONFIG_HOME first — run that, not this tape alone.
 
 Output docs/demo.gif
 
@@ -17,7 +13,7 @@ Set TypingSpeed 60ms
 Set WindowBar Colorful
 
 Hide
-Type "export XDG_CONFIG_HOME=$(mktemp -d) PS1='$ ' && cd examples/tick && clear" Enter
+Type "export PS1='$ ' && cd examples/tick && clear" Enter
 Show
 
 Type "reqdeck tui" Sleep 400ms Enter
@@ -55,6 +51,9 @@ Type "sync" Sleep 1s Enter
 Sleep 2s
 Type "n" Sleep 1.5s
 Escape Sleep 1s
+
+# Reload from disk — it also does so on its own, every 30 seconds.
+Type "r" Sleep 2s
 
 # Themes, previewed as the cursor moves.
 Type "t" Sleep 1s

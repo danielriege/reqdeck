@@ -41,6 +41,9 @@ jobs:
         run: |
           version=$(python -c "import re; print(re.search(r'__version__ = \"(.+)\"', open('reqdeck/__init__.py').read())[1])")
           test "v${version}" = "${GITHUB_REF_NAME}" || { echo "tag ${GITHUB_REF_NAME} is not v${version}"; exit 1; }
+      - name: The plugin carries the same version
+        run: |
+          grep -q "\"version\": \"${GITHUB_REF_NAME#v}\"" .claude-plugin/plugin.json || { echo ".claude-plugin/plugin.json is not ${GITHUB_REF_NAME#v}"; exit 1; }
       - name: The changelog names the version
         run: |
           version=${GITHUB_REF_NAME#v}

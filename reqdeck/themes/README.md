@@ -22,7 +22,7 @@ except `selection`, the one filled row.
 | `code` | Inline code — byte values, command codes |
 | `table_header` | A table's header row |
 | `statement_bar` | The bar beside a requirement's statement |
-| `accepted` `proposed` `reopened` | Review status |
+| `accepted` `proposed` `reopened` | Review status, and progress: done, part built, not built |
 | `security` | The security-relevant marker |
 | `open` `answered` | An open question's state |
 | `keys` | Key names in the hint line |

@@ -16,7 +16,7 @@ from pathlib import Path
 from . import __version__, config, ops, render, store
 from .config import STATUS
 from .markers import Ref
-from .model import Model, Req, split
+from .model import PROGRESS, Model, Req, split
 
 BOLD, DIM, RED, RESET = "\033[1m", "\033[2m", "\033[31m", "\033[0m"
 
@@ -77,6 +77,7 @@ def cmd_get(m: Model, args) -> int:
             "code_refs": [asdict(x) for x in refs if not x.is_test],
             "test_refs": [asdict(x) for x in refs if x.is_test],
             "covering_test_refs": [asdict(x) for x in m.covering_refs(rid) if x.is_test],
+            "progress": asdict(m.progress(rid)),
         }, indent=2))
         return 0
 
@@ -97,6 +98,13 @@ def cmd_get(m: Model, args) -> int:
         print(f"  {_c('Verification:', DIM)} {r.verification} — {v.name if v else '?'}")
     if r.status:
         print(f"  {_c('Status:', DIM)} {r.status}")
+    progress = m.progress(rid)
+    if progress.state:
+        print(f"  {_c('Progress:', DIM)} {progress.state} — {PROGRESS[progress.state]}")
+        for label, ids in (("nothing satisfies", progress.unsatisfied), ("no code", progress.uncoded),
+                           ("no test", progress.untested)):
+            if ids:
+                print(f"    {_c(label + ':', DIM)} {', '.join(ids)}")
     if r.security:
         print(f"  {_c('Security relevant:', DIM)} {r.security}")
     for k, v in r.extra.items():
@@ -207,8 +215,8 @@ GAP_LABELS = [
     ("dangling", "Satisfies a requirement that does not exist", True),
     ("orphans", "No satisfies link — traces to nothing", False),
     ("unsatisfied", "Nothing satisfies it yet", False),
-    ("untested", "Verification is automated, but no test references it or its children", False),
-    ("uncoded", "Implemented in software, but no code reference", False),
+    ("untested", "Needs a test, but none names it — or, where it must be satisfied, all that is beneath it", False),
+    ("uncoded", "Needs code, but none names it — or, where it must be satisfied, all that is beneath it", False),
     ("not_accepted", "Not yet accepted — awaiting review by the user", False),
 ]
 
@@ -259,15 +267,16 @@ def cmd_trace(m: Model, args) -> int:
             problems.append(f"{rid}: is a {r.kind}, which no code references directly — "
                             f"name what satisfies it instead ({below})")
             continue
-        code = [x for x in m.refs_for(rid) if not x.is_test]
+        code = m.code_refs(r)
         test = [x for x in m.covering_refs(rid) if x.is_test]
-        needs_code = m.code_bearing(rid)
-        needs_test = m.automated(r)
-        if needs_code and not code:
-            problems.append(f"{rid}: no code reference — put @REQ_REF({rid}) on what implements it")
-        if needs_test and not test:
-            problems.append(f"{rid}: verification is {r.verification}, so a test must name it — "
-                            f"add @REQ_REF({rid}) to the test function")
+        satisfied, needs_code, needs_test = m.needs(r)
+        missing = m.missing(r)
+        if "code" in missing:
+            beneath = ", or on what implements every requirement beneath it" if satisfied else ""
+            problems.append(f"{rid}: no code reference — put @REQ_REF({rid}) on what implements it{beneath}")
+        if "test" in missing:
+            beneath = ", or test every requirement beneath it" if satisfied else ""
+            problems.append(f"{rid}: needs a test — add @REQ_REF({rid}) to the test function{beneath}")
         results.append({"id": rid, "verification": r.verification, "status": r.status,
                         "code_refs": [asdict(x) for x in code],
                         "test_refs": [asdict(x) for x in test],

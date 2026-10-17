@@ -54,6 +54,18 @@ class Level:
     traced: bool = True
     separator: str = "_"
     digits: int = 3
+    #: What a requirement of this level must have before it is done; see
+    #: `Model.missing`. Unset keeps the defaults: `satisfied` where another
+    #: level names this one in its `satisfies`, `code` where the unit says
+    #: `code = true`, `test` where the verification method is automated.
+    #: A lower level must satisfy it — or, with `code`, its own code marker.
+    satisfied: bool | None = None
+    #: A code marker must name it — or, with `satisfied`, every requirement
+    #: beneath it must be named by code, or be satisfied by ones that are.
+    code: bool | None = None
+    #: A test marker must name it — or, with `satisfied`, every requirement
+    #: beneath it must be named by a test, or be satisfied by ones that are.
+    test: bool | None = None
 
 
 @dataclass
@@ -150,6 +162,17 @@ def load(root: Path) -> Config:
         for k in lv.satisfies:
             if k not in kinds:
                 raise ConfigError(f"{path}: level {lv.kind} satisfies unknown level {k}")
+        for key in ("satisfied", "code", "test"):
+            if getattr(lv, key) not in (None, True, False):
+                raise ConfigError(f"{path}: level {lv.kind}: {key} is true or false")
+        below = any(lv.kind in other.satisfies for other in levels)
+        for key in ("code", "test"):
+            if getattr(lv, key) and not lv.traced and not (lv.satisfied if lv.satisfied is not None else below):
+                raise ConfigError(f"{path}: level {lv.kind}: {key} = true with traced = false can only be "
+                                  f"met by markers beneath it, so it needs satisfied = true")
+        if lv.satisfied and not below:
+            raise ConfigError(f"{path}: level {lv.kind}: satisfied = true, but no level "
+                              f"names {lv.kind} in its satisfies")
 
     verification = {}
     for code, (name, definition, automated) in DEFAULT_VERIFICATION.items():

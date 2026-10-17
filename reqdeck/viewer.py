@@ -38,6 +38,9 @@ TARGET_RE = re.compile(r"(?:goto|link)\('(?:reqdeck:)?([^']+)'\)")
 
 #: Status letter in the tree, and the theme role that colours it.
 STATUS_MARK = {"Accepted": ("A", "accepted"), "Proposed": ("P", "proposed"), "Reopened": ("R", "reopened")}
+#: Progress mark in the tree, and the theme role that colours it.
+PROGRESS_MARK = {"Done": ("✓", "accepted"), "Untested": ("◑", "proposed"), "Partial": ("◔", "proposed"),
+                 "Not implemented": ("○", "reopened"), "Unsatisfied": ("✗", "reopened")}
 
 HELP = """\
 # Keys
@@ -67,6 +70,20 @@ The tree always has the cursor; the reading pane shows what it highlights.
 
 Every requirement and question ID in the reading pane is a link, and so is every code
 and test reference. Hover one for a preview, click it to go there.
+
+# Marks
+
+Beside each requirement in the tree: its review status, then how far it is built — judged
+over it and everything that satisfies it, from the links and the `@REQ_REF` markers.
+
+| | |
+|---|---|
+| `A` `P` `R` | Accepted, Proposed, Reopened |
+| `✓` | Done — coded, and tested where its verification asks, and so is everything beneath it |
+| `◑` | Untested — the code is there, a test its verification asks for is not |
+| `◔` | Partial — some of what is beneath it is built, not all |
+| `○` | Not implemented — code is expected, and none names it |
+| `✗` | Unsatisfied — a lower level exists to satisfy it, and nothing does |
 """
 
 
@@ -283,6 +300,11 @@ def _status_chip(status: str) -> Content:
     return Content.assemble((f"● {status}", f"bold $rk-{role}"))
 
 
+def _progress_chip(state: str) -> Content:
+    mark, role = PROGRESS_MARK.get(state, ("?", "muted"))
+    return Content.assemble((f"{mark} {state}", f"bold $rk-{role}"))
+
+
 def _link(rid: str, sel: str = "") -> tuple[str, str]:
     """A clickable ID; the one under the keyboard link cursor is drawn reversed."""
     style = "bold $rk-link-active on $rk-selection" if rid == sel else "$rk-link underline"
@@ -372,6 +394,8 @@ def requirement_card(m: Model, r: Req, full: bool, sel: str = "") -> Vertical:
         head += ["  ", (r.title, "bold $rk-foreground")]
     if m.reviewed(r) and r.status:
         head += ["  ", _status_chip(r.status)]
+    if m.progress(r.id).state:
+        head += ["  ", _progress_chip(m.progress(r.id).state)]
     if r.security:
         head += ["  ", ("◆ security", "bold $rk-security")]
     parts.append(Static(Content.assemble(*head), classes="card-head"))
@@ -706,6 +730,12 @@ class ReqdeckApp(App):
         if self.m.reviewed(r):
             mark, role = STATUS_MARK.get(r.status, ("?", "muted"))
             t.append(f"{mark} ", style=f"bold {self.colour(role)}")
+        state = self.m.progress(r.id).state
+        if state:
+            mark, role = PROGRESS_MARK[state]
+            t.append(f"{mark} ", style=f"bold {self.colour(role)}")
+        else:
+            t.append("  ")
         t.append(r.id, style=self.colour("id"))
         t.append(f"  {r.label}")
         return t
@@ -840,12 +870,16 @@ class ReqdeckApp(App):
             return out
         if kind == "level":
             lv = m.cfg.level(key)
+            def done(u) -> str:
+                states = [m.progress(r.id).state for r in m.reqs.values() if r.unit == u.stem]
+                asked = [st for st in states if st]
+                return f"{asked.count('Done')}/{len(asked)}" if asked else "—"
             rows = "\n".join(
                 f"| {u.title} | `{', '.join(u.prefixes)}` | {sum(1 for r in m.reqs.values() if r.unit == u.stem)} "
-                f"| `{m.cfg.rel(u.csv_path)}` |" for u in m.units if u.level == key)
+                f"| {done(u)} | `{m.cfg.rel(u.csv_path)}` |" for u in m.units if u.level == key)
             return [heading(f"{lv.kind} — {lv.title}", 1),
                     Markdown(f"Satisfies: **{', '.join(lv.satisfies) or 'top level'}**\n\n"
-                             f"| Unit | Prefix | Requirements | File |\n|---|---|---|---|\n{rows}\n",
+                             f"| Unit | Prefix | Requirements | Done | File |\n|---|---|---|---|---|\n{rows}\n",
                              classes="prose")]
         if kind == "topic":
             qs = [q for q in m.questions if q.topic == key]
@@ -967,6 +1001,8 @@ class ReqdeckApp(App):
             head = [(r.id, "bold $rk-id")] + (["  ", (r.title, "bold $rk-foreground")] if r.title else [])
             if m.reviewed(r) and r.status:
                 head += ["  ", _status_chip(r.status)]
+            if m.progress(r.id).state:
+                head += ["  ", _progress_chip(m.progress(r.id).state)]
         else:
             head = [(self._title_for(data), "bold $rk-heading")]
         top = Static(Content.assemble(*head), classes="card-head")
@@ -1161,6 +1197,8 @@ class ReqdeckApp(App):
                 head += ["  ", (r.title, "bold")]
             if m.reviewed(r) and r.status:
                 head += ["  ", _status_chip(r.status)]
+            if m.progress(r.id).state:
+                head += ["  ", _progress_chip(m.progress(r.id).state)]
             lines = [Content.assemble(*head), Content(""), Content(r.statement)]
             if r.satisfies:
                 lines.append(Content.assemble(("Satisfies  ", "$rk-muted"), ", ".join(r.satisfies)))

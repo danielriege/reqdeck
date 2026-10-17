@@ -112,7 +112,12 @@ def _config(shape: str, req_dir: str, questions: str, sys_: str, sub: str, icd: 
             split_tests: bool, headers: bool) -> str:
     out = ["# reqdeck configuration — https://github.com/danielriege/reqdeck", "",
            f'requirements = "{req_dir}"', f'questions = "{questions}"', "",
-           "# Most abstract first. `satisfies` names the levels a requirement may point at.", "",
+           "# Most abstract first. `satisfies` names the levels a requirement may point at.",
+           "# `satisfied`, `code` and `test` (true or false) set what a level needs before it is",
+           "# done; unset, they follow from `satisfies`, the unit's `code` and the verification.",
+           "# `code` and `test` are met by a marker on the requirement itself, or, with `satisfied`,",
+           "# by markers on every requirement beneath it; with `code`, its own marker also counts",
+           "# for `satisfied`. See the README.", "",
            '[[levels]]\nkind = "STORY"\ntitle = "User story"\nreviewed = false\ntraced = false\n'
            'separator = "-"\ndigits = 2\n']
     if shape == "3":

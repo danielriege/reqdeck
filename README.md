@@ -131,6 +131,11 @@ verification method fits, where a marker goes.
 status, statement, detail tables and fields — beside the open questions by topic. The tree
 always has the cursor; the right pane shows what it highlights.
 
+Beside each requirement in the tree are two marks. The letter is its review status: `A`ccepted,
+`P`roposed, `R`eopened. The symbol is how far it is built, judged over it and everything that
+satisfies it: `✓` done, `◑` untested, `◔` partial, `○` not implemented, `✗` unsatisfied. The
+card says which requirements beneath it keep it from done, and `reqdeck get` prints the same.
+
 | | |
 |---|---|
 | `j` `k` `h` `l` · `gg` `G` | Move through the tree, as in vim |
@@ -242,6 +247,7 @@ traced = false
 kind = "SW"
 satisfies = ["SYS"]
 topic = true
+code = true                   # what it needs before it is done — see below
 
 [verification.T]
 name = "Test"
@@ -259,6 +265,51 @@ command = "nvim +{line} {file}"           # or "code --goto {file}:{line}"
 
 Without `[verification]` the methods are A, I, D and T. Without `[markers]` every common
 source file is scanned and a marker may sit anywhere.
+
+### What a level needs
+
+Three keys on a `[[levels]]` entry say what each of its requirements needs before it is done.
+Each is `true` or `false`; left out, it takes the default in the last column, which is how
+reqdeck behaved before the keys existed.
+
+| Key | Met when | Left out |
+|---|---|---|
+| `satisfied` | a requirement of a lower level names it in `satisfies` — **or**, where the level also has `code = true`, a code marker names it itself | `true` if another level lists this one in its `satisfies` |
+| `code` | a code `@REQ_REF` names it — **or**, where the level also has `satisfied = true`, **every** requirement beneath it is named by code, or is satisfied by requirements that all are | the unit's `code = true` |
+| `test` | a test `@REQ_REF` names it — **or**, where the level also has `satisfied = true`, **every** requirement beneath it is named by a test, or is satisfied by requirements that all are | the verification method's `automated = true` |
+
+`code` and `test` follow one rule: **a marker on the requirement itself, or a marker on every
+branch beneath it.** "Beneath" is everything that satisfies it, all the way down, and *every
+branch* means each requirement satisfying it is named by a marker, or is in turn satisfied by
+requirements that all are. One branch without is enough to leave it short. With three
+software requirements satisfying a system requirement and code on two, the system
+requirement is not coded and shows as partial; code on the third makes it coded. Tests are
+counted the same way, separately: code on all three and a test on two leaves it untested.
+
+So a level with `satisfied = true` and `code = true` is done in either of two ways:
+
+- **Broken down.** Lower requirements satisfy it, and code names every one of them (or every
+  one of theirs, where they are broken down further).
+- **Implemented as it stands.** Code names it directly, and nothing needs to satisfy it.
+
+`test = true` adds the same again for tests, on top of either way.
+
+With `satisfied = false`, only a marker on the requirement itself counts, for `code` and for
+`test`. A level with `traced = false` may never be named by a marker directly, so `code = true`
+or `test = true` there needs `satisfied = true` — the markers can only be beneath it — and
+`check` refuses the config otherwise.
+
+`coverage`, `trace`, `get` and the progress marks in the TUI all judge by these same rules.
+
+```toml
+[[levels]]
+kind = "TSR"                  # a technical system requirement
+satisfies = ["STORY"]
+traced = false                # never named by code itself...
+satisfied = true              # ...so a TSSR or an ICD must satisfy it,
+code = true                   # and code must name every one of those,
+test = true                   # and a test must name every one of those too
+```
 
 ## Limitations
 

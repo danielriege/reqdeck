@@ -8,6 +8,7 @@
     m.up("ICD_BUS_014")         # what it satisfies, transitively
     m.down("TSR_009")           # what satisfies it, transitively
     m.covering_refs("TSR_009")  # markers on it or on anything beneath it
+    m.progress("SYS_004")       # how far it and everything beneath it is built
 
 Only `satisfies` is ever written, pointing one level up. The reverse direction
 is derived here, so the two can never disagree.
@@ -23,6 +24,17 @@ from . import markers, questions, store
 from .config import STATUS, Config
 from .markers import Ref
 from .store import Unit
+
+#: How far a requirement is built, least first. Derived from the links and the
+#: markers, never stored: the review status says whether it is right, this
+#: says whether it is there.
+PROGRESS = {
+    "Unsatisfied": "a lower level exists to satisfy it, and nothing does",
+    "Not implemented": "code is expected, here or beneath it, and none names it",
+    "Partial": "some of what is beneath it is built, not all",
+    "Untested": "the code is there; a test its verification asks for is not",
+    "Done": "coded, and tested where its verification asks, and so is everything beneath it",
+}
 
 SPLIT = re.compile(r"[\s,;]+")
 NONE = {"", "—", "-"}
@@ -68,6 +80,17 @@ class Req:
         return asdict(self)
 
 
+@dataclass
+class Progress:
+    #: One of PROGRESS, or empty where nothing traceable is asked of it or
+    #: of anything beneath it.
+    state: str
+    #: Below, or the requirement itself: what keeps it from Done.
+    unsatisfied: list[str] = field(default_factory=list)
+    uncoded: list[str] = field(default_factory=list)
+    untested: list[str] = field(default_factory=list)
+
+
 class Model:
     def __init__(self, cfg: Config):
         self.cfg = cfg
@@ -79,6 +102,7 @@ class Model:
         #: Problems found while loading, reported by `check`.
         self.load_problems: list[str] = []
         self.satisfied_by: dict[str, list[str]] = {}
+        self._progress: dict[str, Progress] = {}
 
     # ---------------------------------------------------------------- loading
 
@@ -139,6 +163,7 @@ class Model:
                 r.detail = text
 
     def relink(self) -> None:
+        self._progress = {}
         self.satisfied_by = {k: [] for k in self.reqs}
         for r in self.reqs.values():
             for target in r.satisfies:
@@ -221,6 +246,95 @@ class Model:
         lv = self.cfg.level(r.kind)
         return lv.traced if lv else True
 
+    def needs(self, r: Req) -> tuple[bool, bool, bool]:
+        """Whether `r` must be satisfied from below, named by code, named by a test.
+        Its level says so, or else the defaults described on `config.Level`."""
+        lv = self.cfg.level(r.kind)
+        satisfied = lv.satisfied if lv and lv.satisfied is not None else r.kind in self.cfg.parent_kinds
+        if lv and lv.code is not None:
+            code = lv.code
+        else:
+            code = self.reviewed(r) and self.code_bearing(r.id)
+        test = lv.test if lv and lv.test is not None else self.reviewed(r) and self.automated(r)
+        return satisfied, code, test
+
+    def code_refs(self, r: Req) -> list[Ref]:
+        """The code markers that bear on `r`: its own, and where its level must be
+        satisfied, those beneath it. Whether they are enough is `coded`."""
+        refs = self.covering_refs(r.id) if self.needs(r)[0] else self.refs_for(r.id)
+        return [x for x in refs if not x.is_test]
+
+    def _traced_by(self, r: Req, test: bool) -> bool:
+        """A code marker (or with `test`, a test marker) names `r` — or, where its
+        level must be satisfied, every branch beneath it ends in one: each
+        requirement satisfying it is named, or is in turn satisfied by
+        requirements that all are. One branch without leaves it short, and its
+        progress Partial."""
+        def named(rid: str) -> bool:
+            return any(x.is_test == test for x in self.refs_for(rid))
+
+        def reaches(rid: str, seen: frozenset) -> bool:
+            if named(rid):
+                return True
+            below = [c for c in self.satisfied_by.get(rid, []) if c not in seen]
+            return bool(below) and all(reaches(c, seen | {c}) for c in below)
+        return named(r.id) or (self.needs(r)[0] and reaches(r.id, frozenset({r.id})))
+
+    def coded(self, r: Req) -> bool:
+        """Code names `r`, or every branch beneath it — see `_traced_by`."""
+        return self._traced_by(r, test=False)
+
+    def tested(self, r: Req) -> bool:
+        """A test names `r`, or every branch beneath it — see `_traced_by`."""
+        return self._traced_by(r, test=True)
+
+    def missing(self, r: Req) -> set[str]:
+        """What `r` lacks of what it needs: "satisfied", "code", "test".
+
+        - satisfied: something satisfies it — or, needing code too, code names
+          it itself: it is implemented as it stands, not broken down further.
+        - code: code names it — or, needing to be satisfied, every branch
+          beneath it ends in code (see `coded`).
+        - test: the same, with a test (see `tested`)."""
+        satisfied, code, test = self.needs(r)
+        has_below = bool(self.satisfied_by.get(r.id))
+        own_code = any(not x.is_test for x in self.refs_for(r.id))
+        out = set()
+        if satisfied and not has_below and not (code and own_code):
+            out.add("satisfied")
+        if code and not self.coded(r):
+            out.add("code")
+        if test and not self.tested(r):
+            out.add("test")
+        return out
+
+    def progress(self, rid: str) -> Progress:
+        """How far `rid` is built, judged over it and everything that satisfies it,
+        by what each of them `needs`. A user story is Done once its whole chain is."""
+        if rid in self._progress:
+            return self._progress[rid]
+        below = [self.reqs[x] for x in [rid] + self.down(rid) if x in self.reqs]
+        missing = {r.id: self.missing(r) for r in below}
+        unsatisfied = [r.id for r in below if "satisfied" in missing[r.id]]
+        needs_code = [r.id for r in below if self.needs(r)[1]]
+        needs_test = [r.id for r in below if self.needs(r)[2]]
+        uncoded = [r.id for r in below if "code" in missing[r.id]]
+        untested = [r.id for r in below if "test" in missing[r.id]]
+        if rid in unsatisfied and rid not in uncoded:
+            state = "Unsatisfied"
+        elif needs_code and len(uncoded) == len(needs_code):
+            state = "Not implemented"
+        elif uncoded or unsatisfied:
+            state = "Partial"
+        elif untested:
+            state = "Untested"
+        elif needs_code or needs_test:
+            state = "Done"
+        else:
+            state = ""
+        p = self._progress[rid] = Progress(state, unsatisfied, uncoded, untested)
+        return p
+
     def next_id(self, prefix: str) -> str:
         unit = self.unit(prefix)
         lv = self.cfg.level(unit.level) if unit else None
@@ -234,7 +348,6 @@ class Model:
     def gaps(self) -> dict:
         g = {"dangling": [], "orphans": [], "unsatisfied": [], "untested": [],
              "uncoded": [], "not_accepted": []}
-        parents = self.cfg.parent_kinds
         for r in self.reqs.values():
             lv = self.cfg.level(r.kind)
             for t in r.satisfies:
@@ -242,14 +355,12 @@ class Model:
                     g["dangling"].append({"id": r.id, "missing": t})
             if lv and lv.satisfies and not r.satisfies:
                 g["orphans"].append(r.id)
-            if r.kind in parents and not self.satisfied_by.get(r.id):
-                g["unsatisfied"].append(r.id)
+            missing = self.missing(r)
+            for need, key in (("satisfied", "unsatisfied"), ("test", "untested"), ("code", "uncoded")):
+                if need in missing:
+                    g[key].append(r.id)
             if not self.reviewed(r):
                 continue
-            if self.automated(r) and not [x for x in self.covering_refs(r.id) if x.is_test]:
-                g["untested"].append(r.id)
-            if self.code_bearing(r.id) and not [x for x in self.refs_for(r.id) if not x.is_test]:
-                g["uncoded"].append(r.id)
             if r.status != "Accepted":
                 g["not_accepted"].append(r.id)
         for k in g:

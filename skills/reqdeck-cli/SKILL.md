@@ -148,9 +148,30 @@ non-canonical CSV, a detail block for a requirement that is not in that unit, an
 | `dangling` | Satisfies something that does not exist — always a bug |
 | `orphans` | No satisfies link. Legitimate only with the reason in the rationale |
 | `unsatisfied` | A story, or a parent level, nothing satisfies yet |
-| `untested` | Verification is automated, but no test names it or anything beneath it |
-| `uncoded` | Unit has `code = true`, but no code names it |
+| `untested` | Its level, or else its verification method, needs a test, and no test names it — or, where it must be satisfied, not every requirement beneath it |
+| `uncoded` | Its level, or else its unit, needs code, and no code names it — or, where it must be satisfied, not every requirement beneath it |
 | `not_accepted` | Awaiting the user's review — not a gap to close by editing |
+
+What each level needs is set by `satisfied`, `code` and `test` on its `[[levels]]` entry in
+`.reqdeck.toml`:
+
+- `satisfied` — something beneath satisfies it, or, where the level also needs code, code
+  names it itself.
+- `code` — code names it, or, where the level also needs satisfying, code names every
+  requirement beneath it (each one, or all of the ones satisfying it in turn). One branch
+  without code leaves it uncoded.
+- `test` — the same as `code`, with tests: a test names it, or, where the level also needs
+  satisfying, a test names every requirement beneath it.
+
+So a requirement that needs both `satisfied` and `code` is done broken down (lower
+requirements satisfy it, and code names every one of them) or implemented as it stands (code
+names it directly). Put a marker on the requirement the code really implements; never add one to a
+higher level just to close its gap.
+
+`get --json` carries the same per requirement as `progress`, judged over it and everything
+beneath it: `state` is `Unsatisfied`, `Not implemented`, `Partial`, `Untested` or `Done`
+(empty where nothing traceable is asked), and `unsatisfied`, `uncoded`, `untested` list the
+IDs keeping it from `Done`. A story is `Done` only once its whole chain is.
 
 Gaps are normal while topics are still being discussed. **Do not close them by inventing
 links or markers.** Report them.

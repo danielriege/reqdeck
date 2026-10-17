@@ -250,6 +250,94 @@ class TestTrace(Base):
         self.assertEqual([r.id for r in m.covering_refs("SR_001")], ["SSR_APP_001"])
         self.assertNotIn("SR_001", m.gaps()["untested"])
 
+    def test_every_branch_beneath_needs_its_test(self):
+        self.p.write("tests/screen_test.swift", "// @REQ_REF(SSR_APP_001) shows the screen\n")
+        ops.add(self.p.model(), "SSR_APP", {"statement": "T.", "satisfies": "SR_001", "source": "x",
+                                            "verification": "T"})
+        m = self.p.model()
+        self.assertIn("SR_001", m.gaps()["untested"])                 # SSR_APP_002 has no test
+        self.p.write("tests/sound_test.swift", "// @REQ_REF(SSR_APP_002) sounds\n")
+        self.assertNotIn("SR_001", self.p.model().gaps()["untested"])
+
+    def test_progress_rolls_up_the_chain(self):
+        def states():
+            m = self.p.model()
+            return [m.progress(rid).state for rid in ("A-01", "SR_001", "SSR_APP_001")]
+        self.assertEqual(states(), ["Not implemented"] * 3)
+        self.p.write("src/screen.swift", "// @REQ_REF(SSR_APP_001) shows the screen\n")
+        self.assertEqual(states(), ["Untested"] * 3)
+        self.assertEqual(self.p.model().progress("A-01").untested, ["SR_001", "SSR_APP_001"])
+        self.p.write("tests/screen_test.swift", "// @REQ_REF(SSR_APP_001) shows the screen\n")
+        self.assertEqual(states(), ["Done"] * 3)
+        # A second story, which nothing satisfies, and a second child with no code.
+        ops.add(self.p.model(), "A", {"statement": "As a collector, I want sound."})
+        ops.add(self.p.model(), "SSR_APP", {"statement": "T.", "satisfies": "SR_001", "source": "x",
+                                            "verification": "I"})
+        m = self.p.model()
+        self.assertEqual(m.progress("A-02").state, "Unsatisfied")
+        self.assertEqual(m.progress("SR_001").state, "Partial")
+        self.assertEqual(m.progress("SR_001").uncoded, ["SSR_APP_002"])
+
+
+class TestLevelNeeds(Base):
+    def configure(self, sr: str) -> None:
+        """The SR level with `sr` in place of `traced = false`."""
+        path = self.p.root / ".reqdeck.toml"
+        path.write_text(CONFIG.replace("topic = true\ntraced = false\n", f"topic = true\n{sr}\n", 1))
+
+    def test_its_own_code_or_code_on_every_branch_beneath(self):
+        self.configure("code = true")
+        m = self.p.model()
+        self.assertEqual(m.missing(m.reqs["SR_001"]), {"satisfied", "code", "test"})
+        self.assertEqual(m.progress("SR_001").state, "Not implemented")
+        self.p.write("src/light.swift", "// @REQ_REF(SR_001) lights\n")
+        m = self.p.model()
+        self.assertEqual(m.missing(m.reqs["SR_001"]), {"test"})        # coded: no breakdown needed
+        self.p.write("src/light.swift", "")
+        ops.add(self.p.model(), "SSR_APP", {"statement": "S.", "satisfies": "SR_001", "source": "x",
+                                            "verification": "I"})
+        m = self.p.model()
+        self.assertEqual(m.missing(m.reqs["SR_001"]), {"code", "test"})  # broken down, but nothing coded
+        self.p.write("src/screen.swift", "// @REQ_REF(SSR_APP_001) shows it\n")
+        m = self.p.model()
+        self.assertEqual(m.missing(m.reqs["SR_001"]), {"test"})        # code beneath it counts
+        self.assertEqual([x.id for x in m.code_refs(m.reqs["SR_001"])], ["SSR_APP_001"])
+        ops.add(self.p.model(), "SSR_APP", {"statement": "T.", "satisfies": "SR_001", "source": "x",
+                                            "verification": "I"})
+        m = self.p.model()
+        self.assertEqual(m.missing(m.reqs["SR_001"]), {"code", "test"})  # every branch must end in code
+        self.assertEqual(m.progress("SR_001").state, "Partial")
+        self.p.write("src/sound.swift", "// @REQ_REF(SSR_APP_002) sounds\n")
+        m = self.p.model()
+        self.assertEqual(m.missing(m.reqs["SR_001"]), {"test"})
+
+    def test_code_beneath_counts_only_where_it_must_be_satisfied(self):
+        self.configure("satisfied = false\ncode = true")
+        ops.add(self.p.model(), "SSR_APP", {"statement": "S.", "satisfies": "SR_001", "source": "x",
+                                            "verification": "I"})
+        self.p.write("src/screen.swift", "// @REQ_REF(SSR_APP_001) shows it\n")
+        m = self.p.model()
+        self.assertIn("code", m.missing(m.reqs["SR_001"]))           # only its own marker counts
+        self.configure("traced = false\ncode = true")                   # met only from beneath: fine
+        self.assertEqual(self.p.model().missing(self.p.model().reqs["SR_001"]), {"test"})
+        self.configure("traced = false\ncode = true\nsatisfied = false")
+        with self.assertRaisesRegex(config.ConfigError, "needs satisfied = true"):
+            self.p.model()
+
+    def test_levels_turn_needs_off(self):
+        self.configure("traced = false\nsatisfied = false\ntest = false")
+        m = self.p.model()
+        self.assertEqual(m.missing(m.reqs["SR_001"]), set())
+        self.assertNotIn("SR_001", m.gaps()["unsatisfied"])
+        self.assertNotIn("SR_001", m.gaps()["untested"])
+
+    def test_contradictions_are_refused(self):
+        self.configure("")
+        path = self.p.root / ".reqdeck.toml"
+        path.write_text(path.read_text().replace('kind = "SSR"\n', 'kind = "SSR"\nsatisfied = true\n'))
+        with self.assertRaisesRegex(config.ConfigError, "no level names SSR"):
+            self.p.model()
+
 
 class TestDocument(Base):
     def test_sections_are_numbered_by_declaration_order(self):
